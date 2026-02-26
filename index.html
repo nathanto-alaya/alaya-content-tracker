@@ -4,6 +4,74 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alaya Content Tracker</title>
+<meta name="application-name" content="Alaya">
+<meta name="apple-mobile-web-app-title" content="Alaya">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f13">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" id="appleTouchIcon">
+<script>
+// Generate icon via canvas and set it dynamically (no separate image file needed)
+(function() {
+  const size = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#0f0f13';
+  ctx.fillRect(0, 0, size, size);
+
+  // Draw ⬡ hexagon in white
+  ctx.save();
+  ctx.translate(size/2, size/2);
+  const r = 180;
+  ctx.beginPath();
+  for(let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i - 30);
+    i === 0 ? ctx.moveTo(r * Math.cos(angle), r * Math.sin(angle))
+             : ctx.lineTo(r * Math.cos(angle), r * Math.sin(angle));
+  }
+  ctx.closePath();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 28;
+  ctx.stroke();
+
+  // "A" text inside
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 220px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('A', 0, 10);
+  ctx.restore();
+
+  const dataUrl = c.toDataURL('image/png');
+
+  // Set apple touch icon
+  const link = document.getElementById('appleTouchIcon');
+  if(link) link.href = dataUrl;
+
+  // Inject manifest dynamically (avoids needing a separate manifest.json file)
+  const manifest = {
+    name: 'Alaya Content Tracker',
+    short_name: 'Alaya',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#0f0f13',
+    theme_color: '#0f0f13',
+    icons: [
+      { src: dataUrl, sizes: '512x512', type: 'image/png' },
+      { src: dataUrl, sizes: '192x192', type: 'image/png' }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const manifestLink = document.createElement('link');
+  manifestLink.rel = 'manifest';
+  manifestLink.href = URL.createObjectURL(blob);
+  document.head.appendChild(manifestLink);
+})();
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
