@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alaya Content Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f13; --surface: #1a1a22; --surface2: #22222e; --border: #2e2e3e;
+    --accent: #7c6ff7; --accent2: #f7916f; --text: #e8e8f0; --muted: #777;
+    --green: #4ade80; --yellow: #fbbf24; --red: #f87171; --blue: #60a5fa;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+  #loadingScreen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 999; }
+  #loadingScreen h2 { color: var(--accent); font-size: 20px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 12px; height: 56px; }
+  .logo { font-weight: 700; font-size: 15px; color: var(--accent); margin-right: 8px; }
+  .nav-btn { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 4px 10px; border-radius: 6px; transition: 0.15s; }
+  .nav-btn.active, .nav-btn:hover { color: var(--text); background: var(--surface2); }
+  .ml { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .add-btn { background: var(--accent); border: none; color: #fff; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 8px; cursor: pointer; }
+  .add-btn:hover { opacity: 0.85; }
+  .live-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+  .live-label { font-size: 11px; color: var(--green); }
+
+  .view { display: none; padding: 24px; }
+  .view.active { display: block; }
+
+  .stats { display: flex; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; flex: 1; min-width: 100px; cursor: pointer; transition: 0.15s; }
+  .stat-card:hover, .stat-card.active-filter { border-color: var(--accent); background: var(--surface2); }
+  .stat-num { font-size: 24px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .search { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 13px; width: 200px; }
+  .search:focus { outline: none; border-color: var(--accent); }
+  .filter-select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 9px 12px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; user-select: none; }
+  th.sortable { cursor: pointer; }
+  th.sortable:hover { color: var(--text); }
+  th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+  th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: var(--surface2); }
+  tr.reviewed-row td { background: #4ade8008; }
+  tr.reviewed-row:hover td { background: #4ade8015; }
+  tr.reviewed-row td:first-child { border-left: 3px solid var(--green); }
+  tr.needs-review-row td:first-child { border-left: 3px solid var(--yellow); }
+
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge-posted { background: #4ade8033; color: var(--green); }
+  .badge-scheduled { background: #7c6ff733; color: var(--accent); }
+  .badge-review { background: #f7916f33; color: var(--accent2); }
+  .badge-edited { background: #60a5fa33; color: var(--blue); }
+  .badge-script { background: #fbbf2433; color: var(--yellow); }
+  .badge-idea, .badge-recorded { background: #33334a; color: var(--muted); }
+  .badge-cancelled { background: #f8717122; color: var(--red); }
+  .badge-default { background: #33334a; color: var(--muted); }
+
+  .type-tag { font-size: 11px; padding: 2px 8px; border-radius: 5px; font-weight: 600; white-space: nowrap; }
+  .type-reels { background: #e1306c22; color: #f472b6; }
+  .type-carousels { background: #7c6ff722; color: #a78bfa; }
+  .type-youtube { background: #ff000022; color: #ff6b6b; }
+  .type-podcast { background: #60a5fa22; color: var(--blue); }
+  .type-default { background: #33334a; color: var(--muted); }
+
+  .link-icon { color: var(--accent); text-decoration: none; font-size: 11px; border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; white-space: nowrap; display: inline-block; margin-bottom: 2px; }
+  .link-icon:hover { background: var(--surface2); }
+  .link-icon.social { border-color: #4ade8055; color: var(--green); }
+  .link-icon.social:hover { background: #4ade8011; }
+  .link-icon.draft { border-color: #60a5fa55; color: var(--blue); }
+  .link-icon.draft:hover { background: #60a5fa11; }
+
+  .action-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 11px; margin-right: 3px; }
+  .action-btn:hover { color: var(--text); border-color: var(--accent); }
+  .review-btn { background: none; border: 1px solid var(--yellow); color: var(--yellow); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+  .review-btn:hover { background: #fbbf2422; }
+  .reviewed-badge { display: inline-flex; align-items: center; gap: 4px; background: #4ade8022; border: 1px solid #4ade8055; color: var(--green); border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 600; }
+  .chat-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 11px; position: relative; }
+  .chat-btn:hover { color: var(--text); border-color: var(--accent); }
+  .chat-unread { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; background: var(--accent2); border-radius: 50%; }
+
+  .cal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cal-header h2 { font-size: 17px; }
+  .cal-nav { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  .cal-legend { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+  .cal-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .cal-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-day-label { text-align: center; font-size: 10px; color: var(--muted); padding: 6px 0; font-weight: 600; text-transform: uppercase; }
+  .cal-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; height: 110px; padding: 7px 6px; cursor: pointer; transition: 0.15s; overflow: hidden; display: flex; flex-direction: column; }
+  .cal-cell:hover { border-color: var(--accent); background: var(--surface2); }
+  .cal-cell.today { border-color: var(--accent); background: #7c6ff711; }
+  .cal-cell.today .cal-date { color: var(--accent); }
+  .cal-cell.other-month { opacity: 0.35; }
+  .cal-date { font-size: 11px; font-weight: 700; margin-bottom: 4px; flex-shrink: 0; }
+  .cal-chips { display: flex; flex-direction: column; gap: 2px; overflow: hidden; flex: 1; }
+  .cal-chip { font-size: 10px; padding: 2px 5px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+  .cal-more { font-size: 9px; color: var(--muted); margin-top: 1px; }
+  .chip-reels { background: #e1306c33; color: #f472b6; }
+  .chip-carousels { background: #7c6ff733; color: #a78bfa; }
+  .chip-youtube { background: #ff000033; color: #ff6b6b; }
+  .chip-podcast { background: #60a5fa33; color: var(--blue); }
+  .chip-default { background: #33334a; color: var(--muted); }
+
+  .cal-popup-overlay { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 150; }
+  .cal-popup { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 340px; max-width: 95vw; padding: 20px; }
+  .cal-popup-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .cal-popup-item:last-child { border-bottom: none; }
+  .cal-popup-item:hover .cal-popup-title { color: var(--accent); }
+  .cal-popup-title { font-size: 13px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-popup-close { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+
+  .modal-overlay { position: fixed; inset: 0; background: #000b; display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 560px; max-width: 96vw; max-height: 92vh; overflow-y: auto; padding: 26px; }
+  .modal h3 { font-size: 16px; margin-bottom: 18px; }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  .form-row input, .form-row select, .form-row textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 11px; border-radius: 8px; font-size: 13px; font-family: inherit; }
+  .form-row textarea { resize: vertical; min-height: 70px; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: var(--accent); }
+  .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .btn-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .btn-save { background: var(--accent); border: none; color: #fff; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-delete { background: #f8717122; border: 1px solid #f8717155; color: var(--red); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-right: auto; }
+
+  .chat-overlay { position: fixed; inset: 0; background: #000b; display: flex; align-items: center; justify-content: center; z-index: 200; }
+  .chat-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 520px; max-width: 96vw; height: 620px; max-height: 94vh; display: flex; flex-direction: column; }
+  .chat-header { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .chat-header-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .chat-header-info p { font-size: 11px; color: var(--muted); }
+  .chat-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 5px; flex-shrink: 0; }
+  .chat-close:hover { color: var(--text); background: var(--surface2); }
+  .chat-review-bar { padding: 9px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); }
+  .chat-review-bar span { font-size: 12px; }
+  .btn-approve { background: var(--green); border: none; color: #000; font-size: 12px; font-weight: 700; padding: 6px 16px; border-radius: 7px; cursor: pointer; }
+  .btn-approve:hover { opacity: 0.85; }
+  .btn-approved { background: #4ade8022; border: 1px solid #4ade8055; color: var(--green); font-size: 12px; font-weight: 700; padding: 6px 16px; border-radius: 7px; cursor: pointer; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 80%; display: flex; flex-direction: column; gap: 3px; }
+  .msg.me { align-self: flex-end; align-items: flex-end; }
+  .msg.them { align-self: flex-start; align-items: flex-start; }
+  .msg-sender { font-size: 10px; color: var(--muted); padding: 0 4px; }
+  .msg-bubble { padding: 9px 13px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+  .msg.me .msg-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.them .msg-bubble { background: var(--surface2); color: var(--text); border-bottom-left-radius: 4px; }
+  .msg-time { font-size: 10px; color: var(--muted); padding: 0 4px; }
+  .msg-system { align-self: center; background: #4ade8022; border: 1px solid #4ade8044; color: var(--green); font-size: 11px; padding: 4px 12px; border-radius: 20px; }
+  .chat-input-area { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .chat-who-row { display: flex; align-items: center; gap: 8px; }
+  .chat-who-label { font-size: 11px; color: var(--muted); }
+  .who-chip { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: 0.15s; }
+  .who-chip.active { border-color: var(--accent); color: var(--accent); background: #7c6ff722; font-weight: 600; }
+  .chat-send-row { display: flex; gap: 8px; }
+  .chat-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; height: 40px; }
+  .chat-input:focus { outline: none; border-color: var(--accent); }
+  .send-btn { background: var(--accent); border: none; color: #fff; padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .send-btn:hover { opacity: 0.85; }
+  .no-msgs { text-align: center; color: var(--muted); font-size: 13px; margin: auto; }
+
+  .report-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; max-width: 860px; }
+  .report-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 10px; }
+  .report-header h2 { font-size: 18px; margin-bottom: 4px; }
+  .report-date { font-size: 12px; color: var(--muted); }
+  .gen-btn { background: var(--accent); border: none; color: #fff; font-size: 13px; font-weight: 600; padding: 9px 20px; border-radius: 8px; cursor: pointer; }
+  .gen-btn:hover { opacity: 0.85; }
+  .auto-note { font-size: 11px; color: var(--muted); margin-top: 5px; text-align: right; }
+  .report-section { margin-bottom: 28px; }
+  .report-section h3 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .report-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .report-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; min-width: 110px; flex: 1; }
+  .report-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
+  .report-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .bank-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; background: var(--surface2); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+  .bank-row .cat { color: var(--text); flex: 1; padding-right: 12px; }
+  .bank-row .cnt { font-weight: 700; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .warn { color: var(--red); font-size: 11px; background: #f8717122; border: 1px solid #f8717144; padding: 2px 8px; border-radius: 10px; }
+  .ok { color: var(--green); }
+  .bar-wrap { display: flex; gap: 6px; align-items: flex-end; height: 70px; margin-top: 10px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar-col span { font-size: 11px; color: var(--muted); }
+  .bar-fill { width: 100%; border-radius: 4px 4px 0 0; background: var(--accent); opacity: 0.8; min-height: 4px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--accent); color: var(--text); padding: 11px 18px; border-radius: 10px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .empty { text-align: center; color: var(--muted); padding: 48px; font-size: 14px; }
+
+  /* PILLARS */
+  .pillars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .pillar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .pillar-card:hover { border-color: var(--accent); }
+  .pillar-day { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  .pillar-type { font-size: 15px; font-weight: 700; color: var(--text); }
+  .pillar-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .pillar-example { font-size: 11px; color: var(--accent); text-decoration: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; display: inline-block; margin-top: 2px; width: fit-content; }
+  .pillar-example:hover { background: var(--surface2); }
+  .pillar-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pillar-header { display: flex; align-items: center; gap: 8px; }
+
+  /* Calendar mismatch */
+  .cal-cell.mismatch { border-color: #fbbf2455; }
+  .cal-mismatch-tag { font-size: 9px; color: var(--yellow); margin-top: auto; padding-top: 2px; }
+</style>
+</head>
+<body>
+
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <h2>⬡ Alaya Content Tracker</h2>
+  <p style="color:var(--muted);font-size:13px">Connecting to database...</p>
+</div>
+
+<div id="mainApp" style="display:none">
+  <nav>
+    <span class="logo">⬡ Alaya</span>
+    <button class="nav-btn active" onclick="showView('tracker',this)">📋 Tracker</button>
+    <button class="nav-btn" onclick="showView('calendar',this)">📅 Calendar</button>
+    <button class="nav-btn" onclick="showView('report',this)">📊 Weekly Report</button>
+    <button class="nav-btn" onclick="showView('pillars',this)">📌 Content Pillars</button>
+    <div class="ml">
+      <span class="live-dot"></span><span class="live-label">Live</span>
+      <button class="add-btn" onclick="openModal()">+ New Post</button>
+    </div>
+  </nav>
+
+  <div id="tracker" class="view active">
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input class="search" id="searchInput" type="text" placeholder="🔍  Search posts..." oninput="renderTable()">
+      <select class="filter-select" id="filterStatus" onchange="renderTable()"><option value="">All Statuses</option></select>
+      <select class="filter-select" id="filterType" onchange="renderTable()"><option value="">All Types</option></select>
+      <select class="filter-select" id="filterCat" onchange="renderTable()"><option value="">All Categories</option></select>
+      <select class="filter-select" id="filterReview" onchange="renderTable()">
+        <option value="">All Reviews</option>
+        <option value="needs">Needs Review</option>
+        <option value="approved">Approved</option>
+      </select>
+    </div>
+    <div id="tableWrap"><div class="empty">Loading posts...</div></div>
+  </div>
+
+  <div id="calendar" class="view">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+      <h2 id="calTitle"></h2>
+      <button class="cal-nav" onclick="changeMonth(1)">›</button>
+      <div class="cal-legend">
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#f472b6"></div>Reels</div>
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#a78bfa"></div>Carousels</div>
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#ff6b6b"></div>YouTube</div>
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--blue)"></div>Podcast</div>
+      </div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div id="report" class="view">
+    <div class="report-panel">
+      <div class="report-header">
+        <div>
+          <h2>📊 Weekly Content Report</h2>
+          <p class="report-date" id="reportDateRange"></p>
+        </div>
+        <div>
+          <button class="gen-btn" onclick="generateReport()">⚡ Generate Report</button>
+          <p class="auto-note" id="autoNote"></p>
+        </div>
+      </div>
+      <div class="report-section"><h3>📅 Weekly Output — This Week vs Last Week</h3><div class="report-grid" id="weekGrid"></div></div>
+      <div class="report-section"><h3>📈 Posting Consistency — Last 4 Weeks</h3><div class="report-grid" id="consistencyGrid"></div><div class="bar-wrap" id="consistencyBar"></div></div>
+      <div class="report-section"><h3>🎨 Content Mix Breakdown (All Posted)</h3><div id="mixRows"></div></div>
+      <div class="report-section"><h3>🔄 Pipeline Health</h3><div id="pipelineRows"></div></div>
+      <div class="report-section"><h3>⚠ Category Bank — Scheduled Posts</h3><div id="bankRows"></div></div>
+      <div class="report-section"><h3>🔴 Approval Backlog</h3><div id="backlogRows"></div></div>
+    </div>
+  </div>
+
+  <div id="pillars" class="view">
+    <div style="max-width:960px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2 style="font-size:18px;margin-bottom:4px">📌 Content Pillars</h2>
+          <p style="font-size:12px;color:var(--muted)">Your weekly posting schedule — one pillar per day</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="cal-nav" onclick="window.changePillarWeek(-1)">‹</button>
+          <span id="pillarWeekLabel" style="font-size:13px;font-weight:600;min-width:160px;text-align:center"></span>
+          <button class="cal-nav" onclick="window.changePillarWeek(1)">›</button>
+          <button class="cal-nav" id="pillarTodayBtn" onclick="window.resetPillarWeek()" style="font-size:11px;padding:5px 10px">Today</button>
+        </div>
+      </div>
+      <div class="pillars-grid" id="pillarsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CAL POPUP -->
+<div class="cal-popup-overlay" id="calPopupOverlay" style="display:none" onclick="if(event.target===this)closeCalPopup()">
+  <div class="cal-popup">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <strong id="calPopupDate" style="font-size:14px;color:var(--accent)"></strong>
+      <button class="cal-popup-close" onclick="closeCalPopup()">✕</button>
+    </div>
+    <div id="calPopupItems"></div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="modalOverlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modalTitle">New Post</h3>
+    <div class="form-row"><label>Subject</label><input id="fSubject" placeholder="Post title or topic"></div>
+    <div class="form-2col">
+      <div class="form-row"><label>Post Type</label>
+        <select id="fType"><option>Reels</option><option>Carousels</option><option>YouTube</option><option>Podcast Shorts</option><option>TikTok</option></select>
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select id="fStatus"><option>Idea</option><option>Script</option><option>Recorded</option><option>Edited</option><option>Review</option><option>Scheduled</option><option>Posted</option><option>Cancelled</option></select>
+      </div>
+    </div>
+    <div class="form-row"><label>Category</label>
+      <select id="fCat">
+        <option>Talking Head — Market Update</option>
+        <option>Talking Head — Concept Explanation</option>
+        <option>Talking Head — Client Result</option>
+        <option>Talking Head — Personal Opinion</option>
+        <option>Carousel — Repurposed / High Value</option>
+        <option>Carousel — Suburb Specific</option>
+        <option>B-Roll Caption Reel</option>
+        <option>Fun / Meme</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-2col">
+      <div class="form-row"><label>Date Posted</label><input type="text" id="fDate" placeholder="DD/MM/YYYY"></div>
+      <div class="form-row"><label>Social Link <span style="color:var(--green);font-size:10px">(live post)</span></label>
+        <input id="fLinkSocial" placeholder="https://instagram.com/p/...">
+      </div>
+    </div>
+    <div class="form-row"><label>Draft Link <span style="color:var(--blue);font-size:10px">(pre-publish)</span></label>
+      <input id="fLinkDraft" placeholder="https://drive.google.com/... or https://canva.com/...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDelete" onclick="deletePost()" style="display:none">Delete</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="savePost()">Save Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT PANEL -->
+<div class="chat-overlay" id="chatOverlay" style="display:none" onclick="if(event.target===this)closeChat()">
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div class="chat-header-info">
+        <h4 id="chatPostTitle"></h4>
+        <p id="chatPostMeta"></p>
+      </div>
+      <button class="chat-close" onclick="closeChat()">✕</button>
+    </div>
+    <div class="chat-review-bar">
+      <span id="reviewStatus"></span>
+      <div id="reviewAction"></div>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <div class="chat-who-row">
+        <span class="chat-who-label">Replying as:</span>
+        <button class="who-chip active" id="chipNathan" onclick="setChatUser('Nathan')">Nathan</button>
+        <button class="who-chip" id="chipAdi" onclick="setChatUser('Adi Chanda')">Adi Chanda</button>
+        <button class="who-chip" id="chipRedom" onclick="setChatUser('Redom Syed')">Redom Syed</button>
+      </div>
+      <div class="chat-send-row">
+        <textarea class="chat-input" id="chatInput" placeholder="Write a comment..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+        <button class="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, remove, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBKbgGQJqF10tIilhORJZrTDESulX7-L7k",
+  authDomain: "alaya-content-tracker-738d3.firebaseapp.com",
+  databaseURL: "https://alaya-content-tracker-738d3-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "alaya-content-tracker-738d3",
+  storageBucket: "alaya-content-tracker-738d3.firebasestorage.app",
+  messagingSenderId: "881399326805",
+  appId: "1:881399326805:web:fffe4b76221491bb93ccdc"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const postsRef = ref(db, 'posts');
+
+let posts = [];
+let sortCol = 'd', sortDir = 'desc';
+let statusFilter = '';
+let chatPostId = null, chatUser = 'Nathan';
+let allMessages = {};
+let pillarWeekOffset = 0;
+const today = new Date();
+let calYear = today.getFullYear(), calMonth = today.getMonth();
+
+// FIX: Store editingId on window so savePost/deletePost reliably read it
+// (ES module scope means a module-local variable can be stale when called via onclick)
+window._editingId = null;
+
+// ── CONTENT PILLARS ──
+const PILLARS = [
+  { day: 'Monday',    weekday: 1, type: 'Reels',     color: '#f472b6',
+    category: 'Talking Head — Market Update',
+    desc: 'Talking head property content — market updates, explaining concepts, tips & tricks.',
+    example: null },
+  { day: 'Tuesday',   weekday: 2, type: 'Carousels', color: '#a78bfa',
+    category: 'Carousel — Repurposed / High Value',
+    desc: 'Repurposed YT content with high value, suburb-specific content or market breakdowns.',
+    example: 'https://www.instagram.com/p/DTNrQStCHyE/?img_index=4' },
+  { day: 'Wednesday', weekday: 3, type: 'Reels',     color: '#f472b6',
+    category: 'B-Roll Caption Reel',
+    desc: 'B-roll caption reel — explain a concept through the captions while b-roll plays.',
+    example: null },
+  { day: 'Thursday',  weekday: 4, type: 'Reels',     color: '#f472b6',
+    category: 'Talking Head — Personal Opinion',
+    desc: 'Personal opinion about property — your take, controversial or not.',
+    example: null },
+  { day: 'Friday',    weekday: 5, type: 'Carousels', color: '#a78bfa',
+    category: 'Carousel — Repurposed / High Value',
+    desc: 'Carousel — high-value educational or market-related carousel content.',
+    example: null },
+  { day: 'Saturday',  weekday: 6, type: 'Reels',     color: '#f472b6',
+    category: 'Talking Head — Client Result',
+    desc: 'Talking head client result — showcase a client win or success story.',
+    example: null },
+  { day: 'Sunday',    weekday: 0, type: 'Reels',     color: '#f472b6',
+    category: 'B-Roll Caption Reel',
+    desc: 'B-roll caption reel — another concept explained through captions.',
+    example: null },
+];
+
+// Returns the expected pillar for a given JS Date weekday (0=Sun…6=Sat)
+function getPillarForWeekday(wd) {
+  return PILLARS.find(p => p.weekday === wd) || null;
+}
+
+// Strict match: Reels days must have Reels, Carousels days must have Carousels
+function matchesPillar(postType, weekday) {
+  const pillar = getPillarForWeekday(weekday);
+  if (!pillar || !postType) return true;
+  const pt = postType.toLowerCase();
+  const expected = pillar.type.toLowerCase();
+  if (expected === 'reels') return pt.includes('reel') || pt.includes('tiktok');
+  if (expected === 'carousels') return pt.includes('carousel');
+  return pt.includes(expected);
+}
+
+function parseDD(str) {
+  if(!str) return null;
+  const p = str.split('/');
+  if(p.length !== 3) return null;
+  const d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtShort(d) { return d.toLocaleDateString('en-AU',{day:'2-digit',month:'short'}); }
+function statusClass(s) {
+  if(!s) return 'default'; const l=s.toLowerCase();
+  if(l==='posted') return 'posted'; if(l==='scheduled') return 'scheduled';
+  if(l==='review') return 'review'; if(l==='edited') return 'edited';
+  if(l==='script'||l==='scripting') return 'script'; if(l==='cancelled') return 'cancelled';
+  if(l==='recorded'||l==='idea') return 'idea'; return 'default';
+}
+function typeClass(t) {
+  if(!t) return 'default'; const l=t.toLowerCase();
+  if(l.includes('reel')) return 'reels'; if(l.includes('carousel')) return 'carousels';
+  if(l.includes('youtube')||l.includes('yt')) return 'youtube'; if(l.includes('podcast')) return 'podcast';
+  return 'default';
+}
+function getMsgCount(id) { const m=allMessages[id]; return m?Object.keys(m).length:0; }
+
+onValue(postsRef, (snap) => {
+  const data = snap.val();
+  if(!data) return;
+  posts = Object.entries(data).map(([id,val]) => ({...val, id}));
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  populateFilters(); renderTable(); renderCalendar();
+  autoUpdateStatuses(); // run check every time posts reload
+});
+onValue(ref(db,'messages'), (snap) => {
+  allMessages = snap.val() || {};
+  if(chatPostId) renderChatMessages();
+  renderTable();
+});
+
+// ── AUTO STATUS UPDATE: Scheduled → Posted when date has passed ──
+async function autoUpdateStatuses() {
+  const todayStart = new Date();
+  todayStart.setHours(0,0,0,0);
+  const toUpdate = posts.filter(p => {
+    if(p.st !== 'Scheduled') return false;
+    const d = parseDD(p.d);
+    if(!d) return false;
+    // Post date is strictly before today (end of that day has passed)
+    const postDay = new Date(d);
+    postDay.setHours(23,59,59,999);
+    return postDay < todayStart;
+  });
+  for(const p of toUpdate) {
+    try {
+      await update(ref(db, `posts/${p.id}`), { st: 'Posted' });
+      const dateStr = new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+      await push(ref(db, `messages/${p.id}`), {
+        system: true,
+        text: `🤖 Auto-updated to Posted on ${dateStr} (scheduled date passed)`,
+        ts: Date.now()
+      });
+    } catch(e) { console.error('Auto-update failed for', p.id, e); }
+  }
+  if(toUpdate.length) showToast(`🤖 ${toUpdate.length} post${toUpdate.length>1?'s':''} auto-updated to Posted`);
+}
+
+// Run auto-update every 60 seconds
+setInterval(autoUpdateStatuses, 60000);
+
+function populateFilters() {
+  const statuses=[...new Set(posts.map(p=>p.st).filter(Boolean))];
+  const types=[...new Set(posts.map(p=>p.t).filter(Boolean))];
+  const cats=[...new Set(posts.map(p=>p.c).filter(Boolean))];
+  const [fs,ft,fc]=['filterStatus','filterType','filterCat'].map(id=>document.getElementById(id));
+  const [sv,tv,cv]=[fs.value,ft.value,fc.value];
+  fs.innerHTML='<option value="">All Statuses</option>'+statuses.map(s=>`<option ${s===sv?'selected':''}>${s}</option>`).join('');
+  ft.innerHTML='<option value="">All Types</option>'+types.map(t=>`<option ${t===tv?'selected':''}>${t}</option>`).join('');
+  fc.innerHTML='<option value="">All Categories</option>'+cats.map(c=>`<option ${c===cv?'selected':''}>${c}</option>`).join('');
+}
+
+function renderStats() {
+  const total=posts.length;
+  const counts={posted:0,scheduled:0,edited:0,review:0,cancelled:0};
+  posts.forEach(p=>{const sc=statusClass(p.st);if(counts[sc]!==undefined)counts[sc]++;});
+  const approved=posts.filter(p=>p.reviewed).length;
+  const needsReview=posts.filter(p=>!p.reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled')).length;
+  const cards=[
+    {label:'Total',num:total,color:'var(--text)',key:''},
+    {label:'Posted',num:counts.posted,color:'var(--green)',key:'Posted'},
+    {label:'Scheduled',num:counts.scheduled,color:'var(--accent)',key:'Scheduled'},
+    {label:'Edited',num:counts.edited,color:'var(--blue)',key:'Edited'},
+    {label:'Needs Review',num:needsReview,color:'var(--yellow)',key:'needs'},
+    {label:'Approved ✓',num:approved,color:'var(--green)',key:'approved'},
+  ];
+  document.getElementById('stats').innerHTML=cards.map(c=>`
+    <div class="stat-card ${statusFilter===c.key?'active-filter':''}" onclick="window.filterByStatus('${c.key}')">
+      <div class="stat-num" style="color:${c.color}">${c.num}</div>
+      <div class="stat-label">${c.label}</div>
+    </div>`).join('');
+}
+
+window.setSort = (col) => {
+  if(sortCol===col) sortDir = sortDir==='asc'?'desc':'asc';
+  else { sortCol=col; sortDir='asc'; }
+  renderTable();
+};
+
+function sortIndicator(col) {
+  if(sortCol!==col) return '';
+  return sortDir==='asc'?' ↑':' ↓';
+}
+
+function renderTable() {
+  statusFilter=document.getElementById('filterStatus')?.value||'';
+  renderStats();
+  const q=document.getElementById('searchInput')?.value.toLowerCase()||'';
+  const fs=document.getElementById('filterStatus')?.value||'';
+  const ft=document.getElementById('filterType')?.value||'';
+  const fc=document.getElementById('filterCat')?.value||'';
+  const fr=document.getElementById('filterReview')?.value||'';
+
+  let filtered=posts.filter(p=>
+    (!q||p.s.toLowerCase().includes(q))&&(!fs||p.st===fs)&&(!ft||p.t===ft)&&(!fc||p.c===fc)&&
+    (!fr||(fr==='needs'&&!p.reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled'))||(fr==='approved'&&p.reviewed))
+  );
+
+  filtered.sort((a,b) => {
+    let va, vb;
+    if(sortCol==='d') {
+      va=parseDD(a.d); vb=parseDD(b.d);
+      if(!va&&!vb) return 0; if(!va) return 1; if(!vb) return -1;
+      return sortDir==='asc'?va-vb:vb-va;
+    }
+    if(sortCol==='s') { va=a.s||''; vb=b.s||''; }
+    else if(sortCol==='t') { va=a.t||''; vb=b.t||''; }
+    else if(sortCol==='st') { va=a.st||''; vb=b.st||''; }
+    else if(sortCol==='c') { va=a.c||''; vb=b.c||''; }
+    else return 0;
+    return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+  });
+
+  if(!filtered.length){document.getElementById('tableWrap').innerHTML=`<div class="empty">No posts found.</div>`;return;}
+
+  document.getElementById('tableWrap').innerHTML=`
+    <table>
+      <thead><tr>
+        <th class="sortable ${sortCol==='s'?'sort-'+sortDir:''}" onclick="window.setSort('s')">Subject${sortIndicator('s')}</th>
+        <th class="sortable ${sortCol==='t'?'sort-'+sortDir:''}" onclick="window.setSort('t')">Type${sortIndicator('t')}</th>
+        <th class="sortable ${sortCol==='c'?'sort-'+sortDir:''}" onclick="window.setSort('c')">Category${sortIndicator('c')}</th>
+        <th class="sortable ${sortCol==='st'?'sort-'+sortDir:''}" onclick="window.setSort('st')">Status${sortIndicator('st')}</th>
+        <th class="sortable ${sortCol==='d'?'sort-'+sortDir:''}" onclick="window.setSort('d')">Date${sortIndicator('d')}</th>
+        <th>Links</th><th>Review</th><th>Chat</th><th></th>
+      </tr></thead>
+      <tbody>${filtered.map(p=>{
+        const reviewed=!!p.reviewed;
+        const needsReview=!reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled');
+        const rowClass=reviewed?'reviewed-row':needsReview?'needs-review-row':'';
+        const msgCount=getMsgCount(p.id);
+        const links=[
+          p.ls?`<a class="link-icon social" href="${p.ls}" target="_blank">📱 Social ↗</a>`:'',
+          p.ld?`<a class="link-icon draft" href="${p.ld}" target="_blank">📄 Draft ↗</a>`:''
+        ].filter(Boolean).join(' ')||'—';
+        return `<tr class="${rowClass}">
+          <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
+            ${reviewed?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
+          </td>
+          <td><span class="type-tag type-${typeClass(p.t)}">${p.t}</span></td>
+          <td style="color:var(--muted);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.c}</td>
+          <td><span class="badge badge-${statusClass(p.st)}">${p.st}</span></td>
+          <td style="color:var(--muted);font-size:12px;white-space:nowrap">${p.d||'—'}</td>
+          <td style="min-width:110px">${links}</td>
+          <td>${reviewed
+            ?`<button class="reviewed-badge" onclick="window.toggleReview('${p.id}',false)" title="Click to unapprove" style="cursor:pointer;background:#4ade8022;border:1px solid #4ade8055;color:var(--green);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600">✓ Approved ↩</button>`
+            :`<button class="review-btn" onclick="window.toggleReview('${p.id}',true)">✓ Approve</button>`
+          }</td>
+          <td><button class="chat-btn" onclick="window.openChat('${p.id}')">
+            💬 ${msgCount>0?`<span style="color:var(--accent)">${msgCount}</span>`:''}
+            ${needsReview&&msgCount===0?'<span class="chat-unread"></span>':''}
+          </button></td>
+          <td><button class="action-btn" onclick="window.openModal('${p.id}')">Edit</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+function renderCalendar() {
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calTitle').textContent=`${months[calMonth]} ${calYear}`;
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const first=new Date(calYear,calMonth,1).getDay();
+  const dim=new Date(calYear,calMonth+1,0).getDate();
+  const dip=new Date(calYear,calMonth,0).getDate();
+  let html=days.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
+  let cells=[];
+  for(let i=first-1;i>=0;i--) cells.push({day:dip-i,cur:false});
+  for(let i=1;i<=dim;i++) cells.push({day:i,cur:true});
+  while(cells.length%7!==0) cells.push({day:cells.length-first-dim+1,cur:false});
+  cells.forEach(c=>{
+    const isToday=c.cur&&c.day===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
+    const dayPosts=c.cur?posts.filter(p=>{
+      if(!p.d) return false;
+      const pts=p.d.split('/');
+      return pts.length===3&&parseInt(pts[0])===c.day&&parseInt(pts[1])-1===calMonth&&parseInt(pts[2])===calYear;
+    }):[];
+    const chips=dayPosts.slice(0,3).map(p=>{
+      const short=p.s.length>22?p.s.slice(0,22)+'…':p.s;
+      return `<div class="cal-chip chip-${typeClass(p.t)}" title="${p.s}">${short}</div>`;
+    }).join('');
+    const more=dayPosts.length>3?`<div class="cal-more">+${dayPosts.length-3} more</div>`:'';
+    const dateStr=c.cur?`${String(c.day).padStart(2,'0')}/${String(calMonth+1).padStart(2,'0')}/${calYear}`:'';
+
+    // Mismatch: any scheduled/posted post on this day doesn't match the pillar type
+    const cellDate = c.cur ? new Date(calYear, calMonth, c.day) : null;
+    const cellWeekday = cellDate ? cellDate.getDay() : -1;
+    const pillar = c.cur ? getPillarForWeekday(cellWeekday) : null;
+    const activePosts = dayPosts.filter(p => p.st === 'Scheduled' || p.st === 'Posted');
+    const hasMismatch = pillar && activePosts.length > 0 && activePosts.some(p => !matchesPillar(p.t, cellWeekday));
+    const mismatchTag = hasMismatch
+      ? `<div class="cal-mismatch-tag" title="Content type doesn't match ${pillar.day} pillar (${pillar.type})">⚠ Wrong pillar type</div>`
+      : '';
+
+    html+=`<div class="cal-cell ${!c.cur?'other-month':''} ${isToday?'today':''} ${hasMismatch?'mismatch':''}"
+      onclick="${c.cur?`window.calCellClick('${dateStr}',${dayPosts.length})`:''}" >
+      <div class="cal-date">${c.day}${pillar&&c.cur?`<span style="color:var(--muted);font-size:9px;font-weight:400;margin-left:4px">${pillar.type}</span>`:''}</div>
+      <div class="cal-chips">${chips}${more}</div>
+      ${mismatchTag}
+    </div>`;
+  });
+  document.getElementById('calGrid').innerHTML=html;
+}
+
+window.calCellClick=(dateStr,count)=>{
+  if(count===0){ window.openModalDate(dateStr); return; }
+  const pts=dateStr.split('/');
+  const day=parseInt(pts[0]),mo=parseInt(pts[1])-1,yr=parseInt(pts[2]);
+  const dayPosts=posts.filter(p=>{
+    if(!p.d) return false;
+    const pp=p.d.split('/');
+    return pp.length===3&&parseInt(pp[0])===day&&parseInt(pp[1])-1===mo&&parseInt(pp[2])===yr;
+  });
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calPopupDate').textContent=`${day} ${months[mo]} ${yr}`;
+  document.getElementById('calPopupItems').innerHTML=dayPosts.map(p=>`
+    <div class="cal-popup-item" onclick="closeCalPopup();window.openChat('${p.id}')">
+      <span class="type-tag type-${typeClass(p.t)}" style="flex-shrink:0">${p.t}</span>
+      <span class="cal-popup-title">${p.s}</span>
+      <span class="badge badge-${statusClass(p.st)}" style="flex-shrink:0">${p.st}</span>
+    </div>`).join('')+
+    `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <button class="add-btn" style="width:100%" onclick="closeCalPopup();window.openModalDate('${dateStr}')">+ Add post on this date</button>
+    </div>`;
+  document.getElementById('calPopupOverlay').style.display='flex';
+};
+window.closeCalPopup=()=>{ document.getElementById('calPopupOverlay').style.display='none'; };
+
+function getWeekRange(offsetWeeks=0) {
+  const now = new Date();
+  const day = now.getDay();
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - (day===0?6:day-1) + (offsetWeeks*7));
+  mon.setHours(0,0,0,0);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate()+6);
+  sun.setHours(23,59,59,999);
+  return {mon,sun};
+}
+
+function getPostedInRange(mon,sun) {
+  return posts.filter(p=>{
+    if(p.st!=='Posted'&&p.st!=='Scheduled') return false;
+    const d=parseDD(p.d);
+    if(!d) return false;
+    return d>=mon && d<=sun;
+  });
+}
+
+window.generateReport = () => {
+  const now=new Date();
+  const {mon,sun}=getWeekRange(0);
+  const {mon:lMon,sun:lSun}=getWeekRange(-1);
+  document.getElementById('reportDateRange').textContent=`Week of ${fmtShort(mon)} – ${fmtShort(sun)}`;
+  document.getElementById('autoNote').textContent=`Last generated: ${now.toLocaleDateString('en-AU',{weekday:'short',day:'2-digit',month:'short'})} ${now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`;
+  localStorage.setItem('alaya_last_report',now.toISOString());
+
+  const thisWeek=getPostedInRange(mon,sun);
+  const lastWeek=getPostedInRange(lMon,lSun);
+  const diff=thisWeek.length-lastWeek.length;
+  const diffColor=diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+  const diffTxt=diff>0?`▲ +${diff} vs last week`:diff<0?`▼ ${diff} vs last week`:`= Same as last week`;
+  const thisTypes={},lastTypes={};
+  thisWeek.forEach(p=>{thisTypes[p.t]=(thisTypes[p.t]||0)+1;});
+  lastWeek.forEach(p=>{lastTypes[p.t]=(lastTypes[p.t]||0)+1;});
+  const allTypes=[...new Set([...Object.keys(thisTypes),...Object.keys(lastTypes)])];
+  document.getElementById('weekGrid').innerHTML=
+    `<div class="report-card"><div class="num" style="color:var(--green)">${thisWeek.length}</div><div class="lbl">This Week</div></div>`+
+    `<div class="report-card"><div class="num" style="color:var(--muted)">${lastWeek.length}</div><div class="lbl">Last Week</div></div>`+
+    `<div class="report-card"><div class="num" style="color:${diffColor};font-size:16px;padding-top:4px">${diffTxt}</div><div class="lbl">Trend</div></div>`+
+    allTypes.map(t=>`<div class="report-card"><div class="num">${thisTypes[t]||0}<span style="color:var(--muted);font-size:14px"> / ${lastTypes[t]||0}</span></div><div class="lbl">${t}</div></div>`).join('');
+
+  const weeks=[0,-1,-2,-3].map(o=>{
+    const {mon:m,sun:s}=getWeekRange(o);
+    return {label:fmtShort(m),count:getPostedInRange(m,s).length};
+  }).reverse();
+  const avg=(weeks.reduce((a,w)=>a+w.count,0)/4).toFixed(1);
+  const maxC=Math.max(...weeks.map(w=>w.count),1);
+  document.getElementById('consistencyGrid').innerHTML=
+    weeks.map(w=>`<div class="report-card"><div class="num" style="color:var(--accent)">${w.count}</div><div class="lbl">${w.label}</div></div>`).join('')+
+    `<div class="report-card"><div class="num" style="color:var(--yellow)">${avg}</div><div class="lbl">4-Week Avg</div></div>`;
+  document.getElementById('consistencyBar').innerHTML=
+    weeks.map(w=>{
+      const h=Math.max(Math.round((w.count/maxC)*52),4);
+      return `<div class="bar-col"><span>${w.count}</span><div class="bar-fill" style="height:${h}px"></div></div>`;
+    }).join('');
+
+  const allPosted=posts.filter(p=>p.st==='Posted');
+  const catCount={},typeCount={};
+  allPosted.forEach(p=>{catCount[p.c]=(catCount[p.c]||0)+1;typeCount[p.t]=(typeCount[p.t]||0)+1;});
+  const tot=allPosted.length||1;
+  document.getElementById('mixRows').innerHTML=
+    `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">By Category</div>`+
+    Object.entries(catCount).sort((a,b)=>b[1]-a[1]).map(([c,n])=>{
+      const pct=Math.round((n/tot)*100);
+      return `<div class="bank-row"><span class="cat">${c}</span>
+        <span class="cnt" style="gap:10px">
+          <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--accent);border-radius:3px"></div></div>
+          <span style="color:var(--muted);font-size:12px;min-width:80px;text-align:right">${n} (${pct}%)</span>
+        </span></div>`;
+    }).join('')+
+    `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin:12px 0 8px">By Type</div>`+
+    Object.entries(typeCount).sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
+      const pct=Math.round((n/tot)*100);
+      return `<div class="bank-row"><span class="cat">${t}</span>
+        <span class="cnt" style="gap:10px">
+          <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--accent2);border-radius:3px"></div></div>
+          <span style="color:var(--muted);font-size:12px;min-width:80px;text-align:right">${n} (${pct}%)</span>
+        </span></div>`;
+    }).join('');
+
+  const pipeline=['Idea','Script','Recorded','Edited','Review','Scheduled'];
+  const pipeCount={};
+  posts.forEach(p=>{if(pipeline.includes(p.st))pipeCount[p.st]=(pipeCount[p.st]||0)+1;});
+  const pMax=Math.max(...pipeline.map(s=>pipeCount[s]||0),1);
+  const pColors=['#33334a','#fbbf2444','#60a5fa44','#7c6ff744','#f7916f44','#4ade8044'];
+  const pText=['var(--muted)','var(--yellow)','var(--blue)','var(--accent)','var(--accent2)','var(--green)'];
+  document.getElementById('pipelineRows').innerHTML=pipeline.map((s,i)=>{
+    const n=pipeCount[s]||0;
+    const w=Math.max(Math.round((n/pMax)*100),2);
+    return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span style="width:80px;font-size:12px;color:${pText[i]};font-weight:600">${s}</span>
+      <div style="flex:1;height:28px;background:var(--surface2);border-radius:6px;overflow:hidden">
+        <div style="width:${w}%;height:100%;background:${pColors[i]};border:1px solid ${pText[i]}33;border-radius:6px;display:flex;align-items:center;padding-left:10px">
+          <span style="font-size:12px;font-weight:700;color:${pText[i]}">${n}</span>
+        </div>
+      </div>
+      <span style="font-size:11px;color:var(--muted);width:50px;text-align:right">${n} post${n!==1?'s':''}</span>
+    </div>`;
+  }).join('');
+
+  const allCats=[...new Set(posts.map(p=>p.c).filter(Boolean))];
+  const schedByCat={};
+  posts.forEach(p=>{if(p.st==='Scheduled')schedByCat[p.c]=(schedByCat[p.c]||0)+1;});
+  document.getElementById('bankRows').innerHTML=allCats.map(cat=>{
+    const cnt=schedByCat[cat]||0;
+    const warn=cnt<3?`<span class="warn">⚠ Only ${cnt} scheduled</span>`:'';
+    return `<div class="bank-row"><span class="cat">${cat}</span><span class="cnt ${cnt>=3?'ok':''}">${cnt} scheduled ${warn}</span></div>`;
+  }).join('');
+
+  const backlog=posts.filter(p=>!p.reviewed&&(p.st==='Edited'||p.st==='Review'));
+  document.getElementById('backlogRows').innerHTML=!backlog.length
+    ?`<div class="bank-row" style="color:var(--green)">✓ No backlog — all edited posts have been reviewed!</div>`
+    :`<div style="margin-bottom:8px;font-size:13px;color:var(--red);font-weight:600">${backlog.length} post${backlog.length!==1?'s':''} waiting for approval</div>`+
+    backlog.map(p=>`<div class="bank-row">
+      <span class="cat">${p.s}</span>
+      <span style="display:flex;gap:8px;align-items:center">
+        <span class="badge badge-${statusClass(p.st)}">${p.st}</span>
+        <button class="action-btn" onclick="window.openChat('${p.id}')">Open Chat</button>
+      </span></div>`).join('');
+};
+
+function checkAutoReport() {
+  const now=new Date();
+  const last=localStorage.getItem('alaya_last_report')?new Date(localStorage.getItem('alaya_last_report')):null;
+  if(now.getDay()===1&&(!last||last.toDateString()!==now.toDateString())) {
+    document.getElementById('autoNote').textContent='Auto-generating (Monday)...';
+    setTimeout(window.generateReport,1500);
+  } else if(last) {
+    document.getElementById('autoNote').textContent=`Last generated: ${last.toLocaleDateString('en-AU',{weekday:'short',day:'2-digit',month:'short'})}`;
+  }
+}
+
+window.openChat=(postId)=>{
+  chatPostId=postId;
+  const p=posts.find(x=>x.id===postId);
+  document.getElementById('chatPostTitle').textContent=p.s;
+  document.getElementById('chatPostMeta').textContent=`${p.t} · ${p.c}${p.d?' · '+p.d:''}`;
+  updateReviewBar(p);
+  renderChatMessages();
+  document.getElementById('chatOverlay').style.display='flex';
+  setTimeout(()=>{const el=document.getElementById('chatMessages');el.scrollTop=el.scrollHeight;},100);
+};
+function updateReviewBar(p) {
+  const rs=document.getElementById('reviewStatus'),ra=document.getElementById('reviewAction');
+  if(p.reviewed){
+    rs.innerHTML=`<span style="color:var(--green)">✓ Approved by ${p.reviewedBy||'?'} · ${p.reviewedAt||''}</span>`;
+    ra.innerHTML=`<button class="btn-approved" onclick="window.toggleReview('${p.id}',false)">Undo</button>`;
+  } else {
+    rs.innerHTML=`<span style="color:var(--yellow)">⏳ Awaiting approval</span>`;
+    ra.innerHTML=`<button class="btn-approve" onclick="window.toggleReview('${p.id}',true)">✓ Approve</button>`;
+  }
+}
+function renderChatMessages() {
+  const msgs=allMessages[chatPostId]?Object.entries(allMessages[chatPostId]).map(([id,m])=>({...m,id})):[];
+  msgs.sort((a,b)=>a.ts-b.ts);
+  const el=document.getElementById('chatMessages');
+  if(!msgs.length){el.innerHTML=`<div class="no-msgs">No messages yet.<br>Start the review conversation!</div>`;return;}
+  el.innerHTML=msgs.map(m=>{
+    if(m.system) return `<div class="msg-system">${m.text}</div>`;
+    const isMe=m.sender===chatUser;
+    return `<div class="msg ${isMe?'me':'them'}">
+      <span class="msg-sender">${m.sender}</span>
+      <div class="msg-bubble">${m.text}</div>
+      <span class="msg-time">${new Date(m.ts).toLocaleDateString('en-AU',{day:'2-digit',month:'short'})+' '+new Date(m.ts).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+window.setChatUser=(u)=>{
+  chatUser=u;
+  ['Nathan','Adi','Redom'].forEach(n=>{
+    const chip=document.getElementById('chip'+n);
+    if(chip) chip.classList.toggle('active',`${n}${n==='Adi'?' Chanda':n==='Redom'?' Syed':''}`===u);
+  });
+};
+window.sendMessage=async()=>{
+  const input=document.getElementById('chatInput');
+  const text=input.value.trim();
+  if(!text||!chatPostId) return;
+  input.value='';
+  await push(ref(db,`messages/${chatPostId}`),{sender:chatUser,text,ts:Date.now()});
+};
+window.toggleReview=async(postId,approve)=>{
+  const now=new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+  await update(ref(db,`posts/${postId}`),{reviewed:approve,reviewedBy:approve?chatUser:null,reviewedAt:approve?now:null});
+  if(approve) await push(ref(db,`messages/${postId}`),{system:true,text:`✓ Approved by ${chatUser} on ${now}`,ts:Date.now()});
+  const updated=posts.find(x=>x.id===postId);
+  if(updated&&chatPostId===postId) updateReviewBar({...updated,reviewed:approve,reviewedBy:chatUser,reviewedAt:now});
+  showToast(approve?'✓ Post approved!':'Approval removed');
+};
+window.closeChat=()=>{document.getElementById('chatOverlay').style.display='none';chatPostId=null;};
+
+// ── MODAL (FIXED) ──
+window.openModal=(id)=>{
+  // Always write to window._editingId so savePost/deletePost read the correct value
+  window._editingId = id || null;
+  const p = id ? posts.find(x => x.id === id) : null;
+  document.getElementById('modalTitle').textContent = p ? 'Edit Post' : 'New Post';
+  document.getElementById('fSubject').value = p?.s || '';
+  document.getElementById('fType').value = p?.t || 'Reels';
+  document.getElementById('fStatus').value = p?.st || 'Idea';
+  document.getElementById('fCat').value = p?.c || 'Educational/Tips and tricks/Personal stories';
+  document.getElementById('fDate').value = p?.d || '';
+  document.getElementById('fLinkSocial').value = p?.ls || '';
+  document.getElementById('fLinkDraft').value = p?.ld || '';
+  document.getElementById('btnDelete').style.display = p ? 'block' : 'none';
+  document.getElementById('modalOverlay').style.display = 'flex';
+};
+window.openModalDate=(date)=>{ window.openModal(); document.getElementById('fDate').value=date; };
+window.closeModal=()=>{
+  document.getElementById('modalOverlay').style.display='none';
+  window._editingId = null;
+};
+window.savePost=async()=>{
+  const s=document.getElementById('fSubject').value.trim();
+  if(!s){alert('Please enter a subject');return;}
+  const post={
+    s,
+    t: document.getElementById('fType').value,
+    c: document.getElementById('fCat').value,
+    st: document.getElementById('fStatus').value,
+    d: document.getElementById('fDate').value.trim(),
+    ls: document.getElementById('fLinkSocial').value.trim(),
+    ld: document.getElementById('fLinkDraft').value.trim()
+  };
+  // Read from window._editingId — reliably set by openModal regardless of module scope
+  const currentId = window._editingId;
+  window.closeModal();
+  try {
+    if(currentId) {
+      await update(ref(db, `posts/${currentId}`), post);
+      showToast('✓ Post updated');
+    } else {
+      await push(postsRef, post);
+      showToast('✓ New post added');
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+};
+window.deletePost=async()=>{
+  if(!confirm('Delete this post?')) return;
+  const id = window._editingId;
+  window.closeModal();
+  try {
+    await remove(ref(db, `posts/${id}`));
+    showToast('Post deleted');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+};
+
+window.filterByStatus=(key)=>{
+  statusFilter=statusFilter===key?'':key;
+  document.getElementById('filterStatus').value=['needs','approved'].includes(statusFilter)?'':statusFilter;
+  renderTable();
+};
+window.changeMonth=(d)=>{
+  calMonth+=d; if(calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;}
+  renderCalendar();
+};
+window.showView=(v,btn)=>{
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById(v).classList.add('active'); btn.classList.add('active');
+  if(v==='calendar') renderCalendar();
+  if(v==='report'){window.generateReport();checkAutoReport();}
+  if(v==='pillars') renderPillars();
+};
+
+window.changePillarWeek = (dir) => { pillarWeekOffset += dir; renderPillars(); };
+window.resetPillarWeek = () => { pillarWeekOffset = 0; renderPillars(); };
+
+function renderPillars() {
+  const pillarColors = {
+    'Reels':    { dot: '#f472b6' },
+    'Carousels':{ dot: '#a78bfa' },
+    'YouTube':  { dot: '#ff6b6b' },
+    'Podcast':  { dot: '#60a5fa' },
+  };
+
+  // Compute the Monday of the selected week
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + pillarWeekOffset * 7);
+  monday.setHours(0,0,0,0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23,59,59,999);
+
+  const isCurrentWeek = pillarWeekOffset === 0;
+  document.getElementById('pillarWeekLabel').textContent =
+    isCurrentWeek ? `This week  (${fmtShort(monday)} – ${fmtShort(sunday)})`
+                  : `${fmtShort(monday)} – ${fmtShort(sunday)}`;
+  document.getElementById('pillarTodayBtn').style.opacity = isCurrentWeek ? '0.4' : '1';
+  document.getElementById('pillarTodayBtn').style.pointerEvents = isCurrentWeek ? 'none' : 'auto';
+
+  document.getElementById('pillarsGrid').innerHTML = PILLARS.map(p => {
+    const col = pillarColors[p.type] || { dot: 'var(--muted)' };
+
+    // Get the exact calendar date for this pillar day within the selected week
+    // PILLARS use JS weekday: 0=Sun, 1=Mon … 6=Sat
+    const daysFromMonday = p.weekday === 0 ? 6 : p.weekday - 1; // Mon=0 offset
+    const pillarDate = new Date(monday);
+    pillarDate.setDate(monday.getDate() + daysFromMonday);
+    const pillarDateEnd = new Date(pillarDate);
+    pillarDateEnd.setHours(23,59,59,999);
+
+    const isPast = pillarDate < now && !isCurrentWeek || (pillarDate.toDateString() !== now.toDateString() && pillarDate < now);
+    const isToday = pillarDate.toDateString() === now.toDateString();
+
+    // Posts on this exact date
+    const dayPosts = posts.filter(post => {
+      const d = parseDD(post.d);
+      if(!d) return false;
+      return d.toDateString() === pillarDate.toDateString() && (post.st === 'Posted' || post.st === 'Scheduled');
+    });
+    const mismatchPosts = dayPosts.filter(post => !matchesPillar(post.t, p.weekday));
+    const mismatchCount = mismatchPosts.length;
+
+    const dateLabel = pillarDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
+
+    let statusBadge = '';
+    if (mismatchCount > 0) {
+      statusBadge = `<span style="margin-left:auto;font-size:10px;color:var(--yellow);background:#fbbf2422;border:1px solid #fbbf2444;border-radius:10px;padding:2px 8px">⚠ ${mismatchCount} mismatch${mismatchCount>1?'es':''}</span>`;
+    } else if (dayPosts.length > 0) {
+      statusBadge = `<span style="margin-left:auto;font-size:10px;color:var(--green);background:#4ade8022;border:1px solid #4ade8044;border-radius:10px;padding:2px 8px">✓ Filled</span>`;
+    } else if (isPast) {
+      statusBadge = `<span style="margin-left:auto;font-size:10px;color:var(--red);background:#f8717122;border:1px solid #f8717144;border-radius:10px;padding:2px 8px">✕ Missed</span>`;
+    } else {
+      statusBadge = `<span style="margin-left:auto;font-size:10px;color:var(--muted);background:#33334a;border:1px solid var(--border);border-radius:10px;padding:2px 8px">Empty</span>`;
+    }
+
+    const postsList = dayPosts.length > 0
+      ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`+
+        dayPosts.map(post => {
+          const isMismatch = !matchesPillar(post.t, p.weekday);
+          return `<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:6px;padding:5px 8px;font-size:11px;${isMismatch?'border:1px solid #fbbf2444':''}">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${post.s}</span>
+            <span class="badge badge-${statusClass(post.st)}" style="font-size:10px;padding:2px 6px">${post.st}</span>
+            ${isMismatch?`<span style="color:var(--yellow);font-size:10px" title="Expected ${p.type}">⚠</span>`:''}
+          </div>`;
+        }).join('')+`</div>`
+      : '';
+
+    return `<div class="pillar-card" style="${isToday?'border-color:var(--accent);background:#7c6ff708':''}">
+      <div class="pillar-header">
+        <div class="pillar-dot" style="background:${col.dot}"></div>
+        <span class="pillar-day">${p.day}</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:4px">${dateLabel}</span>
+        ${isToday?`<span style="font-size:10px;color:var(--accent);margin-left:4px">● Today</span>`:''}
+        ${statusBadge}
+      </div>
+      <div class="pillar-type">${p.type}</div>
+      <div style="font-size:11px;color:var(--accent);margin-bottom:2px">📁 ${p.category}</div>
+      <div class="pillar-desc">${p.desc}</div>
+      ${p.example ? `<a class="pillar-example" href="${p.example}" target="_blank">📎 See example ↗</a>` : ''}
+      ${postsList}
+    </div>`;
+  }).join('');
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
