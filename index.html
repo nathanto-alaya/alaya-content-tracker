@@ -61,6 +61,11 @@
   tr.reviewed-row:hover td { background: #4ade8015; }
   tr.reviewed-row td:first-child { border-left: 3px solid var(--green); }
   tr.needs-review-row td:first-child { border-left: 3px solid var(--yellow); }
+  tr.cancelled-row td { background: #2a0a0a; color: var(--muted); text-decoration: line-through; opacity: 0.7; }
+  tr.cancelled-row td:first-child { border-left: 3px solid #7f1d1d; }
+  tr.cancelled-row:hover td { background: #2a0a0a; }
+  tr.cancelled-row .badge-cancelled { text-decoration: none; }
+  tr.cancelled-row .action-btn { text-decoration: none; opacity: 1; }
 
   .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
   .badge-posted { background: #4ade8033; color: var(--green); }
@@ -629,8 +634,9 @@ function renderTable() {
       </tr></thead>
       <tbody>${filtered.map(p=>{
         const reviewed=!!p.reviewed;
-        const needsReview=!reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled');
-        const rowClass=reviewed?'reviewed-row':needsReview?'needs-review-row':'';
+        const cancelled=p.st==='Cancelled';
+        const needsReview=!reviewed&&!cancelled&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled');
+        const rowClass=cancelled?'cancelled-row':reviewed?'reviewed-row':needsReview?'needs-review-row':'';
         const msgCount=getMsgCount(p.id);
         const links=[
           p.ls?`<a class="link-icon social" href="${p.ls}" target="_blank">📱 Social ↗</a>`:'',
@@ -638,22 +644,27 @@ function renderTable() {
         ].filter(Boolean).join(' ')||'—';
         return `<tr class="${rowClass}">
           <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
-            ${reviewed?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
+            ${reviewed&&!cancelled?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
           </td>
-          <td><span class="type-tag type-${typeClass(p.t)}">${p.t}</span></td>
+          <td><span class="type-tag type-${typeClass(p.t)}" style="${cancelled?'text-decoration:none':''}">${p.t}</span></td>
           <td style="color:var(--muted);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.c}</td>
-          <td><span class="badge badge-${statusClass(p.st)}">${p.st}</span></td>
+          <td><span class="badge badge-${statusClass(p.st)}" style="text-decoration:none">${p.st}</span></td>
           <td style="color:var(--muted);font-size:12px;white-space:nowrap">${p.d||'—'}</td>
-          <td style="min-width:110px">${links}</td>
-          <td>${reviewed
-            ?`<button class="reviewed-badge" onclick="window.toggleReview('${p.id}',false)" title="Click to unapprove" style="cursor:pointer;background:#4ade8022;border:1px solid #4ade8055;color:var(--green);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600">✓ Approved ↩</button>`
-            :`<button class="review-btn" onclick="window.toggleReview('${p.id}',true)">✓ Approve</button>`
+          <td style="min-width:110px">${cancelled?'—':links}</td>
+          <td>${cancelled
+            ? '<span style="color:#7f1d1d;font-size:11px;text-decoration:none">—</span>'
+            : reviewed
+              ? `<button class="reviewed-badge" onclick="window.toggleReview('${p.id}',false)" title="Click to unapprove" style="cursor:pointer;background:#4ade8022;border:1px solid #4ade8055;color:var(--green);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;text-decoration:none">✓ Approved ↩</button>`
+              : `<button class="review-btn" onclick="window.toggleReview('${p.id}',true)">✓ Approve</button>`
           }</td>
-          <td><button class="chat-btn" onclick="window.openChat('${p.id}')">
-            💬 ${msgCount>0?`<span style="color:var(--accent)">${msgCount}</span>`:''}
-            ${needsReview&&msgCount===0?'<span class="chat-unread"></span>':''}
-          </button></td>
-          <td><button class="action-btn" onclick="window.openModal('${p.id}')">Edit</button></td>
+          <td>${cancelled
+            ? '<span style="color:#7f1d1d;font-size:11px;text-decoration:none">—</span>'
+            : `<button class="chat-btn" onclick="window.openChat('${p.id}')">
+                💬 ${msgCount>0?`<span style="color:var(--accent)">${msgCount}</span>`:''}
+                ${needsReview&&msgCount===0?'<span class="chat-unread"></span>':''}
+              </button>`
+          }</td>
+          <td><button class="action-btn" onclick="window.openModal('${p.id}')" style="text-decoration:none;opacity:1">${cancelled?'Restore':'Edit'}</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
