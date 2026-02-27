@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -221,6 +221,31 @@
   /* Calendar mismatch */
   .cal-cell.mismatch { border-color: #fbbf2455; }
   .cal-mismatch-tag { font-size: 9px; color: var(--yellow); margin-top: auto; padding-top: 2px; }
+
+  /* Bulk action bar */
+  .bulk-bar { display: none; align-items: center; gap: 10px; background: #7c6ff722; border: 1px solid var(--accent); border-radius: 10px; padding: 10px 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .bulk-bar.visible { display: flex; }
+  .bulk-count { font-size: 13px; font-weight: 600; color: var(--accent); }
+  .bulk-select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; }
+  .bulk-apply { background: var(--accent); border: none; color: #fff; padding: 7px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .bulk-apply:hover { opacity: 0.85; }
+  .bulk-clear { background: none; border: 1px solid var(--border); color: var(--muted); padding: 7px 12px; border-radius: 7px; font-size: 12px; cursor: pointer; }
+  .bulk-clear:hover { color: var(--text); }
+  .row-check { cursor: pointer; accent-color: var(--accent); width: 14px; height: 14px; }
+
+  /* Engagement metrics */
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
+  .metric-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 7px; font-size: 13px; width: 100%; text-align: center; }
+  .metric-input:focus { outline: none; border-color: var(--accent); }
+  .metric-label { font-size: 10px; color: var(--muted); text-align: center; margin-top: 3px; font-weight: 600; text-transform: uppercase; }
+  .engagement-section { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+  .engagement-section h4 { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+
+  /* Engagement in report */
+  .eng-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+  .eng-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .eng-stat { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .eng-stat strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -256,6 +281,17 @@
         <option value="needs">Needs Review</option>
         <option value="approved">Approved</option>
       </select>
+    </div>
+    <div class="bulk-bar" id="bulkBar">
+      <span class="bulk-count" id="bulkCount">0 selected</span>
+      <select class="bulk-select" id="bulkStatus">
+        <option value="">Change status to…</option>
+        <option>Idea</option><option>Script</option><option>Recorded</option>
+        <option>Edited</option><option>Review</option><option>Scheduled</option>
+        <option>Posted</option><option>Cancelled</option>
+      </select>
+      <button class="bulk-apply" onclick="window.applyBulkStatus()">Apply</button>
+      <button class="bulk-clear" onclick="window.clearSelection()">✕ Clear</button>
     </div>
     <div id="tableWrap"><div class="empty">Loading posts...</div></div>
   </div>
@@ -293,6 +329,7 @@
       <div class="report-section"><h3>🔄 Pipeline Health</h3><div id="pipelineRows"></div></div>
       <div class="report-section"><h3>⚠ Category Bank — Scheduled Posts</h3><div id="bankRows"></div></div>
       <div class="report-section"><h3>🔴 Approval Backlog</h3><div id="backlogRows"></div></div>
+      <div class="report-section"><h3>📊 Engagement — Top Performing Posts</h3><div id="engagementRows"></div></div>
     </div>
   </div>
 
@@ -361,6 +398,15 @@
     <div class="form-row"><label>Draft Link <span style="color:var(--blue);font-size:10px">(pre-publish)</span></label>
       <input id="fLinkDraft" placeholder="https://drive.google.com/... or https://canva.com/...">
     </div>
+    <div class="engagement-section" id="engagementSection" style="display:none">
+      <h4>📊 Engagement Metrics</h4>
+      <div class="metric-grid">
+        <div><input class="metric-input" id="fViews" type="number" min="0" placeholder="0"><div class="metric-label">👁 Views</div></div>
+        <div><input class="metric-input" id="fLikes" type="number" min="0" placeholder="0"><div class="metric-label">❤️ Likes</div></div>
+        <div><input class="metric-input" id="fComments" type="number" min="0" placeholder="0"><div class="metric-label">💬 Comments</div></div>
+        <div><input class="metric-input" id="fShares" type="number" min="0" placeholder="0"><div class="metric-label">🔁 Shares</div></div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-delete" id="btnDelete" onclick="deletePost()" style="display:none">Delete</button>
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -425,6 +471,7 @@ let statusFilter = '';
 let chatPostId = null, chatUser = 'Nathan';
 let allMessages = {};
 let pillarWeekOffset = 0;
+let selectedIds = new Set();
 const today = new Date();
 let calYear = today.getFullYear(), calMonth = today.getMonth();
 
@@ -625,12 +672,13 @@ function renderTable() {
   document.getElementById('tableWrap').innerHTML=`
     <table>
       <thead><tr>
+        <th><input type="checkbox" class="row-check" onchange="window.toggleSelectAll(this)"></th>
         <th class="sortable ${sortCol==='s'?'sort-'+sortDir:''}" onclick="window.setSort('s')">Subject${sortIndicator('s')}</th>
         <th class="sortable ${sortCol==='t'?'sort-'+sortDir:''}" onclick="window.setSort('t')">Type${sortIndicator('t')}</th>
         <th class="sortable ${sortCol==='c'?'sort-'+sortDir:''}" onclick="window.setSort('c')">Category${sortIndicator('c')}</th>
         <th class="sortable ${sortCol==='st'?'sort-'+sortDir:''}" onclick="window.setSort('st')">Status${sortIndicator('st')}</th>
         <th class="sortable ${sortCol==='d'?'sort-'+sortDir:''}" onclick="window.setSort('d')">Date${sortIndicator('d')}</th>
-        <th>Links</th><th>Review</th><th>Chat</th><th></th>
+        <th>Links</th><th>Engagement</th><th>Review</th><th>Chat</th><th></th>
       </tr></thead>
       <tbody>${filtered.map(p=>{
         const reviewed=!!p.reviewed;
@@ -638,11 +686,20 @@ function renderTable() {
         const needsReview=!reviewed&&!cancelled&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled');
         const rowClass=cancelled?'cancelled-row':reviewed?'reviewed-row':needsReview?'needs-review-row':'';
         const msgCount=getMsgCount(p.id);
+        const isSelected=selectedIds.has(p.id);
         const links=[
           p.ls?`<a class="link-icon social" href="${p.ls}" target="_blank">📱 Social ↗</a>`:'',
           p.ld?`<a class="link-icon draft" href="${p.ld}" target="_blank">📄 Draft ↗</a>`:''
         ].filter(Boolean).join(' ')||'—';
+        const hasMetrics = p.st==='Posted' && (p.ev||p.el||p.ec||p.es);
+        const engCell = hasMetrics
+          ? `<div style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+              ${p.ev?`<span>👁 ${p.ev.toLocaleString()}</span>`:''}
+              <span style="display:flex;gap:6px">${p.el?`❤️ ${p.el.toLocaleString()}`:''}${p.ec?` 💬 ${p.ec.toLocaleString()}`:''}${p.es?` 🔁 ${p.es.toLocaleString()}`:''}</span>
+            </div>`
+          : '<span style="color:var(--border)">—</span>';
         return `<tr class="${rowClass}">
+          <td><input type="checkbox" class="row-check" data-id="${p.id}" ${isSelected?'checked':''} ${cancelled?'disabled':''} onchange="window.toggleSelect('${p.id}')" style="text-decoration:none"></td>
           <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
             ${reviewed&&!cancelled?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
           </td>
@@ -651,6 +708,7 @@ function renderTable() {
           <td><span class="badge badge-${statusClass(p.st)}" style="text-decoration:none">${p.st}</span></td>
           <td style="color:var(--muted);font-size:12px;white-space:nowrap">${p.d||'—'}</td>
           <td style="min-width:110px">${cancelled?'—':links}</td>
+          <td>${cancelled?'—':engCell}</td>
           <td>${cancelled
             ? '<span style="color:#7f1d1d;font-size:11px;text-decoration:none">—</span>'
             : reviewed
@@ -862,6 +920,37 @@ window.generateReport = () => {
         <span class="badge badge-${statusClass(p.st)}">${p.st}</span>
         <button class="action-btn" onclick="window.openChat('${p.id}')">Open Chat</button>
       </span></div>`).join('');
+
+  // Engagement section
+  const withMetrics = posts.filter(p => p.st==='Posted' && (p.ev||p.el||p.ec||p.es));
+  const totalViews = withMetrics.reduce((a,p)=>a+(p.ev||0),0);
+  const totalLikes = withMetrics.reduce((a,p)=>a+(p.el||0),0);
+  const totalComments = withMetrics.reduce((a,p)=>a+(p.ec||0),0);
+  const totalShares = withMetrics.reduce((a,p)=>a+(p.es||0),0);
+  const topByViews = [...withMetrics].sort((a,b)=>(b.ev||0)-(a.ev||0)).slice(0,5);
+
+  if(!withMetrics.length) {
+    document.getElementById('engagementRows').innerHTML =
+      `<div class="bank-row" style="color:var(--muted)">No engagement data yet — edit a Posted post to add metrics.</div>`;
+  } else {
+    document.getElementById('engagementRows').innerHTML =
+      `<div class="report-grid" style="margin-bottom:16px">
+        <div class="report-card"><div class="num" style="color:var(--blue)">${totalViews.toLocaleString()}</div><div class="lbl">👁 Total Views</div></div>
+        <div class="report-card"><div class="num" style="color:#f472b6">${totalLikes.toLocaleString()}</div><div class="lbl">❤️ Total Likes</div></div>
+        <div class="report-card"><div class="num" style="color:var(--accent)">${totalComments.toLocaleString()}</div><div class="lbl">💬 Total Comments</div></div>
+        <div class="report-card"><div class="num" style="color:var(--green)">${totalShares.toLocaleString()}</div><div class="lbl">🔁 Total Shares</div></div>
+        <div class="report-card"><div class="num" style="color:var(--yellow);font-size:18px">${withMetrics.length}</div><div class="lbl">Posts with Data</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Top Posts by Views</div>`+
+      topByViews.map(p=>`<div class="eng-row">
+        <span class="eng-title">${p.s}</span>
+        ${p.ev?`<span class="eng-stat">👁 <strong>${p.ev.toLocaleString()}</strong></span>`:''}
+        ${p.el?`<span class="eng-stat">❤️ <strong>${p.el.toLocaleString()}</strong></span>`:''}
+        ${p.ec?`<span class="eng-stat">💬 <strong>${p.ec.toLocaleString()}</strong></span>`:''}
+        ${p.es?`<span class="eng-stat">🔁 <strong>${p.es.toLocaleString()}</strong></span>`:''}
+        <button class="action-btn" onclick="window.openModal('${p.id}')" style="flex-shrink:0">Edit</button>
+      </div>`).join('');
+  }
 };
 
 function checkAutoReport() {
@@ -937,19 +1026,29 @@ window.closeChat=()=>{document.getElementById('chatOverlay').style.display='none
 
 // ── MODAL (FIXED) ──
 window.openModal=(id)=>{
-  // Always write to window._editingId so savePost/deletePost read the correct value
   window._editingId = id || null;
   const p = id ? posts.find(x => x.id === id) : null;
   document.getElementById('modalTitle').textContent = p ? 'Edit Post' : 'New Post';
   document.getElementById('fSubject').value = p?.s || '';
   document.getElementById('fType').value = p?.t || 'Reels';
   document.getElementById('fStatus').value = p?.st || 'Idea';
-  document.getElementById('fCat').value = p?.c || 'Educational/Tips and tricks/Personal stories';
+  document.getElementById('fCat').value = p?.c || 'Talking Head — Market Update';
   document.getElementById('fDate').value = p?.d || '';
   document.getElementById('fLinkSocial').value = p?.ls || '';
   document.getElementById('fLinkDraft').value = p?.ld || '';
+  // Engagement fields — only show for Posted
+  const isPosted = p?.st === 'Posted';
+  document.getElementById('engagementSection').style.display = isPosted ? 'block' : 'none';
+  document.getElementById('fViews').value = p?.ev || '';
+  document.getElementById('fLikes').value = p?.el || '';
+  document.getElementById('fComments').value = p?.ec || '';
+  document.getElementById('fShares').value = p?.es || '';
   document.getElementById('btnDelete').style.display = p ? 'block' : 'none';
   document.getElementById('modalOverlay').style.display = 'flex';
+  // Show engagement section dynamically when status changes to Posted
+  document.getElementById('fStatus').onchange = function() {
+    document.getElementById('engagementSection').style.display = this.value === 'Posted' ? 'block' : 'none';
+  };
 };
 window.openModalDate=(date)=>{ window.openModal(); document.getElementById('fDate').value=date; };
 window.closeModal=()=>{
@@ -959,16 +1058,26 @@ window.closeModal=()=>{
 window.savePost=async()=>{
   const s=document.getElementById('fSubject').value.trim();
   if(!s){alert('Please enter a subject');return;}
+  const st = document.getElementById('fStatus').value;
   const post={
     s,
     t: document.getElementById('fType').value,
     c: document.getElementById('fCat').value,
-    st: document.getElementById('fStatus').value,
+    st,
     d: document.getElementById('fDate').value.trim(),
     ls: document.getElementById('fLinkSocial').value.trim(),
     ld: document.getElementById('fLinkDraft').value.trim()
   };
-  // Read from window._editingId — reliably set by openModal regardless of module scope
+  if(st === 'Posted') {
+    const v = parseInt(document.getElementById('fViews').value)||0;
+    const l = parseInt(document.getElementById('fLikes').value)||0;
+    const c = parseInt(document.getElementById('fComments').value)||0;
+    const sh = parseInt(document.getElementById('fShares').value)||0;
+    if(v) post.ev = v;
+    if(l) post.el = l;
+    if(c) post.ec = c;
+    if(sh) post.es = sh;
+  }
   const currentId = window._editingId;
   window.closeModal();
   try {
@@ -999,6 +1108,47 @@ window.filterByStatus=(key)=>{
   statusFilter=statusFilter===key?'':key;
   document.getElementById('filterStatus').value=['needs','approved'].includes(statusFilter)?'':statusFilter;
   renderTable();
+};
+
+window.toggleSelect=(id)=>{
+  if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  updateBulkBar();
+};
+window.toggleSelectAll=(cb)=>{
+  const checkboxes = document.querySelectorAll('.row-check');
+  checkboxes.forEach(c => {
+    const id = c.dataset.id;
+    if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+    c.checked = cb.checked;
+  });
+  updateBulkBar();
+};
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const count = document.getElementById('bulkCount');
+  if(selectedIds.size > 0) {
+    bar.classList.add('visible');
+    count.textContent = `${selectedIds.size} selected`;
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+window.clearSelection=()=>{
+  selectedIds.clear();
+  updateBulkBar();
+  renderTable();
+};
+window.applyBulkStatus=async()=>{
+  const newStatus = document.getElementById('bulkStatus').value;
+  if(!newStatus) { showToast('Please select a status'); return; }
+  if(!selectedIds.size) return;
+  const ids = [...selectedIds];
+  try {
+    await Promise.all(ids.map(id => update(ref(db,`posts/${id}`),{st:newStatus})));
+    showToast(`✓ ${ids.length} post${ids.length>1?'s':''} updated to ${newStatus}`);
+    selectedIds.clear();
+    document.getElementById('bulkStatus').value = '';
+  } catch(e) { showToast('Error: '+e.message); }
 };
 window.changeMonth=(d)=>{
   calMonth+=d; if(calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;}
