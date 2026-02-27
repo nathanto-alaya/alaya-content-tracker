@@ -350,12 +350,25 @@
   .eng-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .eng-stat { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
   .eng-stat strong { color: var(--text); }
+
+  /* Creator tab bar */
+  .creator-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 4px; height: 44px; overflow-x: auto; }
+  .creator-tab { background: none; border: none; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.15s; white-space: nowrap; color: var(--muted); }
+  .creator-tab:hover { background: var(--surface2); color: var(--text); }
+  .creator-tab.active { color: #fff; }
+  .creator-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 6px; }
+  .creator-count { font-size: 10px; opacity: 0.75; margin-left: 4px; font-weight: 400; }
 </style>
 </head>
 <body>
 
 <div id="loadingScreen">
- <img src="logo.png" alt="Alaya Property" style="height:70px;width:auto;margin-bottom:8px;">
+  <svg width="48" height="48" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 14L14 5L24 14" stroke="#4d58f5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M7 17L7 23L11 23L11 19L17 19L17 23L21 23L21 17" stroke="#4d58f5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 18L14 9L24 18" stroke="#4d58f5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  </svg>
+  <h2>Alaya Property</h2>
   <p style="color:var(--muted);font-size:13px">Connecting to database...</p>
   <div class="spinner"></div>
 </div>
@@ -376,8 +389,13 @@
 <div id="mainApp" style="display:none">
   <nav>
     <span class="logo">
-  <img src="logo.png" alt="Alaya Property" style="height:32px;width:auto;">
-</span>
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 14L14 5L24 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 17L7 23L11 23L11 19L17 19L17 23L21 23L21 17" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 18L14 9L24 18" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+      </svg>
+      <span class="logo-text">Alaya Property</span>
+    </span>
     <button class="nav-btn active" onclick="showView('tracker',this)">Tracker</button>
     <button class="nav-btn" onclick="showView('calendar',this)">Calendar</button>
     <button class="nav-btn" onclick="showView('report',this)">Weekly Report</button>
@@ -388,6 +406,17 @@
       <button class="add-btn" onclick="openModal()">+ New Post</button>
     </div>
   </nav>
+
+  <!-- CREATOR TAB BAR -->
+  <div class="creator-bar" id="creatorBar">
+    <span class="creator-label">Viewing:</span>
+    <button class="creator-tab active" data-creator="All" onclick="window.setCreator('All',this)" style="background:var(--surface2);color:var(--text)">All</button>
+    <button class="creator-tab" data-creator="Adi" onclick="window.setCreator('Adi',this)" style="">Adi <span class="creator-count" id="cnt-Adi"></span></button>
+    <button class="creator-tab" data-creator="Tal" onclick="window.setCreator('Tal',this)">Tal <span class="creator-count" id="cnt-Tal"></span></button>
+    <button class="creator-tab" data-creator="Seb" onclick="window.setCreator('Seb',this)">Seb <span class="creator-count" id="cnt-Seb"></span></button>
+    <button class="creator-tab" data-creator="Ricky" onclick="window.setCreator('Ricky',this)">Ricky <span class="creator-count" id="cnt-Ricky"></span></button>
+  </div>
+
 
   <div id="tracker" class="view active">
     <div class="stats" id="stats"></div>
@@ -520,6 +549,14 @@
     <div class="form-row"><label>Draft Link <span style="color:var(--blue);font-size:10px">(pre-publish)</span></label>
       <input id="fLinkDraft" placeholder="https://drive.google.com/... or https://canva.com/...">
     </div>
+    <div class="form-row"><label>Creator</label>
+      <select id="fCreator">
+        <option>Adi</option>
+        <option>Tal</option>
+        <option>Seb</option>
+        <option>Ricky</option>
+      </select>
+    </div>
     <div class="engagement-section" id="engagementSection" style="display:none">
       <h4>📊 Engagement Metrics</h4>
       <div class="metric-grid">
@@ -590,6 +627,7 @@ const postsRef = ref(db, 'posts');
 let posts = [];
 let sortCol = 'd', sortDir = 'desc';
 let statusFilter = '';
+let activeCreator = 'All';
 let chatPostId = null, chatUser = 'Nathan';
 let allMessages = {};
 let pillarWeekOffset = 0;
@@ -678,8 +716,8 @@ onValue(postsRef, (snap) => {
   posts = Object.entries(data).map(([id,val]) => ({...val, id}));
   document.getElementById('loadingScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  populateFilters(); renderTable(); renderCalendar();
-  autoUpdateStatuses(); // run check every time posts reload
+  populateFilters(); renderTable(); renderCalendar(); updateCreatorCounts();
+  autoUpdateStatuses();
   checkApprovalNotifications();
 });
 onValue(ref(db,'messages'), (snap) => {
@@ -688,6 +726,45 @@ onValue(ref(db,'messages'), (snap) => {
   renderTable();
 });
 
+
+
+const CREATOR_COLORS = {
+  'Adi':   '#e879f9',
+  'Tal':   '#34d399',
+  'Seb':   '#f59e0b',
+  'Ricky': '#60a5fa',
+};
+
+window.setCreator = (creator, btn) => {
+  activeCreator = creator;
+  selectedIds.clear();
+  updateBulkBar();
+  // Update tab styles
+  document.querySelectorAll('.creator-tab').forEach(t => {
+    const c = t.dataset.creator;
+    const isActive = c === creator;
+    t.classList.toggle('active', isActive);
+    if(isActive && c !== 'All') {
+      t.style.background = CREATOR_COLORS[c] || 'var(--accent-bright)';
+      t.style.color = '#fff';
+    } else if(isActive) {
+      t.style.background = 'var(--surface2)';
+      t.style.color = 'var(--text)';
+    } else {
+      t.style.background = '';
+      t.style.color = '';
+    }
+  });
+  renderTable();
+  renderCalendar();
+};
+
+function updateCreatorCounts() {
+  ['Adi','Tal','Seb','Ricky'].forEach(c => {
+    const el = document.getElementById('cnt-' + c);
+    if(el) el.textContent = '(' + posts.filter(p => (p.creator||'Adi') === c).length + ')';
+  });
+}
 
 // ── APPROVAL NOTIFICATIONS ──
 function checkApprovalNotifications() {
@@ -798,10 +875,12 @@ function renderTable() {
   const fc=document.getElementById('filterCat')?.value||'';
   const fr=document.getElementById('filterReview')?.value||'';
 
-  let filtered=posts.filter(p=>
-    (!q||p.s.toLowerCase().includes(q))&&(!fs||p.st===fs)&&(!ft||p.t===ft)&&(!fc||p.c===fc)&&
-    (!fr||(fr==='needs'&&!p.reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled'))||(fr==='approved'&&p.reviewed))
-  );
+  let filtered=posts.filter(p=>{
+    const cr = p.creator||'Adi';
+    if(activeCreator!=='All' && cr!==activeCreator) return false;
+    return (!q||p.s.toLowerCase().includes(q))&&(!fs||p.st===fs)&&(!ft||p.t===ft)&&(!fc||p.c===fc)&&
+    (!fr||(fr==='needs'&&!p.reviewed&&(p.st==='Edited'||p.st==='Review'||p.st==='Scheduled'))||(fr==='approved'&&p.reviewed));
+  });
 
   filtered.sort((a,b) => {
     let va, vb;
@@ -853,6 +932,7 @@ function renderTable() {
           <td><input type="checkbox" class="row-check" data-id="${p.id}" ${isSelected?'checked':''} ${cancelled?'disabled':''} onchange="window.toggleSelect('${p.id}')" style="text-decoration:none"></td>
           <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
             ${reviewed&&!cancelled?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
+            ${activeCreator==='All'?`<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:${CREATOR_COLORS[p.creator||'Adi']||'var(--muted)'}22;color:${CREATOR_COLORS[p.creator||'Adi']||'var(--muted)'}">${p.creator||'Adi'}</span>`:''}
           </td>
           <td>${cancelled
             ? `<span class="type-tag type-${typeClass(p.t)}" style="text-decoration:none">${p.t}</span>`
@@ -910,6 +990,7 @@ function renderCalendar() {
     const isToday=c.cur&&c.day===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
     const dayPosts=c.cur?posts.filter(p=>{
       if(!p.d) return false;
+      if(activeCreator!=='All' && (p.creator||'Adi')!==activeCreator) return false;
       const pts=p.d.split('/');
       return pts.length===3&&parseInt(pts[0])===c.day&&parseInt(pts[1])-1===calMonth&&parseInt(pts[2])===calYear;
     }):[];
@@ -979,6 +1060,7 @@ function getWeekRange(offsetWeeks=0) {
 function getPostedInRange(mon,sun) {
   return posts.filter(p=>{
     if(p.st!=='Posted'&&p.st!=='Scheduled') return false;
+    if(activeCreator!=='All' && (p.creator||'Adi')!==activeCreator) return false;
     const d=parseDD(p.d);
     if(!d) return false;
     return d>=mon && d<=sun;
@@ -989,7 +1071,7 @@ window.generateReport = () => {
   const now=new Date();
   const {mon,sun}=getWeekRange(0);
   const {mon:lMon,sun:lSun}=getWeekRange(-1);
-  document.getElementById('reportDateRange').textContent=`Week of ${fmtShort(mon)} – ${fmtShort(sun)}`;
+  document.getElementById('reportDateRange').textContent=`Week of ${fmtShort(mon)} – ${fmtShort(sun)}${activeCreator!=='All'?' · '+activeCreator:''}`;
   document.getElementById('autoNote').textContent=`Last generated: ${now.toLocaleDateString('en-AU',{weekday:'short',day:'2-digit',month:'short'})} ${now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`;
   localStorage.setItem('alaya_last_report',now.toISOString());
 
@@ -1023,7 +1105,7 @@ window.generateReport = () => {
       return `<div class="bar-col"><span>${w.count}</span><div class="bar-fill" style="height:${h}px"></div></div>`;
     }).join('');
 
-  const allPosted=posts.filter(p=>p.st==='Posted');
+  const allPosted=posts.filter(p=>p.st==='Posted'&&(activeCreator==='All'||(p.creator||'Adi')===activeCreator));
   const catCount={},typeCount={};
   allPosted.forEach(p=>{catCount[p.c]=(catCount[p.c]||0)+1;typeCount[p.t]=(typeCount[p.t]||0)+1;});
   const tot=allPosted.length||1;
@@ -1049,7 +1131,7 @@ window.generateReport = () => {
 
   const pipeline=['Idea','Script','Recorded','Edited','Review','Scheduled'];
   const pipeCount={};
-  posts.forEach(p=>{if(pipeline.includes(p.st))pipeCount[p.st]=(pipeCount[p.st]||0)+1;});
+  posts.filter(p=>activeCreator==='All'||(p.creator||'Adi')===activeCreator).forEach(p=>{if(pipeline.includes(p.st))pipeCount[p.st]=(pipeCount[p.st]||0)+1;});
   const pMax=Math.max(...pipeline.map(s=>pipeCount[s]||0),1);
   const pColors=['#33334a','#fbbf2444','#60a5fa44','#7c6ff744','#f7916f44','#4ade8044'];
   const pText=['var(--muted)','var(--yellow)','var(--blue)','var(--accent)','var(--accent2)','var(--green)'];
@@ -1067,16 +1149,17 @@ window.generateReport = () => {
     </div>`;
   }).join('');
 
-  const allCats=[...new Set(posts.map(p=>p.c).filter(Boolean))];
+  const creatorPosts=posts.filter(p=>activeCreator==='All'||(p.creator||'Adi')===activeCreator);
+  const allCats=[...new Set(creatorPosts.map(p=>p.c).filter(Boolean))];
   const schedByCat={};
-  posts.forEach(p=>{if(p.st==='Scheduled')schedByCat[p.c]=(schedByCat[p.c]||0)+1;});
+  creatorPosts.forEach(p=>{if(p.st==='Scheduled')schedByCat[p.c]=(schedByCat[p.c]||0)+1;});
   document.getElementById('bankRows').innerHTML=allCats.map(cat=>{
     const cnt=schedByCat[cat]||0;
     const warn=cnt<3?`<span class="warn">⚠ Only ${cnt} scheduled</span>`:'';
     return `<div class="bank-row"><span class="cat">${cat}</span><span class="cnt ${cnt>=3?'ok':''}">${cnt} scheduled ${warn}</span></div>`;
   }).join('');
 
-  const backlog=posts.filter(p=>!p.reviewed&&(p.st==='Edited'||p.st==='Review'));
+  const backlog=posts.filter(p=>!p.reviewed&&(p.st==='Edited'||p.st==='Review')&&(activeCreator==='All'||(p.creator||'Adi')===activeCreator));
   document.getElementById('backlogRows').innerHTML=!backlog.length
     ?`<div class="bank-row" style="color:var(--green)">✓ No backlog — all edited posts have been reviewed!</div>`
     :`<div style="margin-bottom:8px;font-size:13px;color:var(--red);font-weight:600">${backlog.length} post${backlog.length!==1?'s':''} waiting for approval</div>`+
@@ -1221,6 +1304,7 @@ window.openModal=(id)=>{
   document.getElementById('fDate').value = p?.d || '';
   document.getElementById('fLinkSocial').value = p?.ls || '';
   document.getElementById('fLinkDraft').value = p?.ld || '';
+  document.getElementById('fCreator').value = p?.creator || (activeCreator !== 'All' ? activeCreator : 'Adi');
   // Engagement fields — only show for Posted
   const isPosted = p?.st === 'Posted';
   document.getElementById('engagementSection').style.display = isPosted ? 'block' : 'none';
@@ -1251,7 +1335,8 @@ window.savePost=async()=>{
     st,
     d: document.getElementById('fDate').value.trim(),
     ls: document.getElementById('fLinkSocial').value.trim(),
-    ld: document.getElementById('fLinkDraft').value.trim()
+    ld: document.getElementById('fLinkDraft').value.trim(),
+    creator: document.getElementById('fCreator').value
   };
   if(st === 'Posted') {
     const v = parseInt(document.getElementById('fViews').value)||0;
