@@ -28,7 +28,65 @@
     --red: #f06b6b;
     --blue: #5c9cf5;
   }
-  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  body.light {
+    --bg: #f4f5fb;
+    --surface: #ffffff;
+    --surface2: #eef0fa;
+    --border: #d4d8f0;
+    --accent: #2d35d4;
+    --accent-bright: #4d58f5;
+    --accent2: #5c9cf5;
+    --text: #0f1030;
+    --muted: #6066a0;
+    --green: #1a9e5c;
+    --yellow: #c49a00;
+    --red: #d03c3c;
+    --blue: #2a70d4;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; transition: background 0.2s, color 0.2s; }
+
+  /* Light mode overrides */
+  body.light tr.reviewed-row td { background: #edfaf4; }
+  body.light tr.reviewed-row:hover td { background: #d8f5e8; }
+  body.light tr.cancelled-row td { background: #fdf0f0; }
+  body.light tr.cancelled-row:hover td { background: #fdf0f0; }
+  body.light .badge-posted { background: #d4f5e4; color: #1a7a4a; border-color: #a8e8c8; }
+  body.light .badge-scheduled { background: #e0e4ff; color: #2d35d4; border-color: #b8c0f8; }
+  body.light .badge-review { background: #fff3d4; color: #a06800; border-color: #f0d890; }
+  body.light .badge-edited { background: #ddeeff; color: #1a5fa8; border-color: #aad0f0; }
+  body.light .badge-script { background: #fef9d4; color: #806000; border-color: #e8d870; }
+  body.light .badge-idea, body.light .badge-recorded { background: #f0f0f8; color: var(--muted); border-color: var(--border); }
+  body.light .badge-cancelled { background: #fde8e8; color: #b02020; border-color: #f0b8b8; }
+  body.light .badge-default { background: #f0f0f8; color: var(--muted); border-color: var(--border); }
+  body.light .type-reels { background: #fde8f4; color: #c0186c; border-color: #f0b8d8; }
+  body.light .type-carousels { background: #eee8ff; color: #5b21b6; border-color: #d4c0f8; }
+  body.light .type-youtube { background: #fde8e8; color: #b02020; border-color: #f0b8b8; }
+  body.light .type-podcast { background: #ddeeff; color: #1a5fa8; border-color: #aad0f0; }
+  body.light .type-default { background: #f0f0f8; color: var(--muted); }
+  body.light .chip-reels { background: #fde8f4; color: #c0186c; }
+  body.light .chip-carousels { background: #eee8ff; color: #5b21b6; }
+  body.light .chip-youtube { background: #fde8e8; color: #b02020; }
+  body.light .chip-podcast { background: #ddeeff; color: #1a5fa8; }
+  body.light .chip-default { background: #f0f0f8; color: var(--muted); }
+  body.light .cal-cell.today { background: #e8eaff; }
+  body.light .msg.me .msg-bubble { background: var(--accent); color: #fff; }
+  body.light .msg.them .msg-bubble { background: var(--surface2); }
+  body.light .bulk-bar { background: #e8eaff; }
+  body.light .warn { background: #fde8e8; border-color: #f0b8b8; }
+  body.light .msg-system { background: #d4f5e4; border-color: #a8e8c8; color: #1a7a4a; }
+  body.light .reviewed-badge { background: #d4f5e4; border-color: #a8e8c8; }
+  body.light .btn-approved { background: #d4f5e4; border-color: #a8e8c8; }
+  body.light .link-icon.social { border-color: #a8e8c8; color: #1a7a4a; }
+  body.light .link-icon.social:hover { background: #d4f5e4; }
+  body.light .link-icon.draft { border-color: #aad0f0; color: #1a5fa8; }
+  body.light .link-icon.draft:hover { background: #ddeeff; }
+  body.light .who-chip.active { background: #e0e4ff; }
+  body.light tr:hover td { background: #eef0fa; }
+  body.light .cal-cell.mismatch { border-color: #e8c840; }
+
+  /* Theme toggle */
+  .theme-toggle { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: 0.15s; white-space: nowrap; }
+  .theme-toggle:hover { background: rgba(255,255,255,0.25); }
   #loadingScreen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 999; }
   #loadingScreen h2 { color: var(--accent-bright); font-size: 20px; }
   .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -293,6 +351,7 @@
     <button class="nav-btn" onclick="showView('pillars',this)">Content Pillars</button>
     <div class="ml">
       <span class="live-dot"></span><span class="live-label">Live</span>
+      <button class="theme-toggle" id="themeToggle" onclick="window.toggleTheme()">☀️ Light</button>
       <button class="add-btn" onclick="openModal()">+ New Post</button>
     </div>
   </nav>
@@ -1291,6 +1350,26 @@ function showToast(msg){
   t.textContent=msg;t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),2500);
 }
+
+window.toggleTheme = () => {
+  const isLight = document.body.classList.toggle('light');
+  const btn = document.getElementById('themeToggle');
+  btn.textContent = isLight ? '🌙 Dark' : '☀️ Light';
+  localStorage.setItem('alaya_theme', isLight ? 'light' : 'dark');
+};
+
+// Apply saved theme on load
+(function() {
+  const saved = localStorage.getItem('alaya_theme');
+  if (saved === 'light') {
+    document.body.classList.add('light');
+    // Button will be updated after DOM loads
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('themeToggle');
+      if (btn) btn.textContent = '🌙 Dark';
+    });
+  }
+})();
 </script>
 </body>
 </html>
