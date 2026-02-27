@@ -84,6 +84,36 @@
   body.light tr:hover td { background: #eef0fa; }
   body.light .cal-cell.mismatch { border-color: #e8c840; }
 
+
+  /* Approval notification banner */
+  .approval-banner { display: none; position: fixed; top: 56px; left: 0; right: 0; z-index: 90; background: var(--surface); border-bottom: 2px solid var(--green); box-shadow: 0 4px 20px rgba(0,0,0,0.3); padding: 0; }
+  body.light .approval-banner { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+  .approval-banner.visible { display: block; }
+  .approval-banner-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: flex-start; gap: 14px; }
+  .approval-banner-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .approval-banner-body { flex: 1; }
+  .approval-banner-title { font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+  .approval-banner-items { display: flex; flex-direction: column; gap: 4px; }
+  .approval-banner-item { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .approval-banner-item .appr-by { font-size: 11px; color: var(--muted); }
+  .approval-banner-dismiss { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 6px 14px; font-size: 12px; cursor: pointer; flex-shrink: 0; white-space: nowrap; align-self: center; }
+  .approval-banner-dismiss:hover { color: var(--text); border-color: var(--muted); }
+  .view { padding-top: 24px; }
+
+  /* Inline table dropdowns */
+  .inline-select { background: none; border: none; color: inherit; font-size: 11px; font-family: inherit; cursor: pointer; padding: 0; appearance: none; -webkit-appearance: none; max-width: 120px; outline: none; }
+  .inline-select:hover { text-decoration: underline; }
+  .inline-select option { background: var(--surface); color: var(--text); }
+  .type-cell { position: relative; display: inline-flex; align-items: center; gap: 3px; }
+  .type-cell .inline-select { font-weight: 600; font-size: 11px; }
+  .inline-caret { font-size: 9px; color: var(--muted); pointer-events: none; }
+
+  /* Message done-tick */
+  .msg-tick { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 5px; opacity: 0.4; transition: 0.15s; flex-shrink: 0; line-height: 1; }
+  .msg-tick:hover { opacity: 1; background: var(--surface2); }
+  .msg-tick.done { opacity: 1; color: var(--green); }
+  .msg.me .msg-tick { order: -1; }
+  .msg-footer { display: flex; align-items: center; gap: 4px; }
   /* Theme toggle */
   .theme-toggle { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: 0.15s; white-space: nowrap; }
   .theme-toggle:hover { background: rgba(255,255,255,0.25); }
@@ -333,6 +363,19 @@
   <h2>Alaya Property</h2>
   <p style="color:var(--muted);font-size:13px">Connecting to database...</p>
   <div class="spinner"></div>
+</div>
+
+
+<!-- APPROVAL NOTIFICATION BANNER -->
+<div class="approval-banner" id="approvalBanner">
+  <div class="approval-banner-inner">
+    <div class="approval-banner-icon">✅</div>
+    <div class="approval-banner-body">
+      <div class="approval-banner-title" id="approvalBannerTitle"></div>
+      <div class="approval-banner-items" id="approvalBannerItems"></div>
+    </div>
+    <button class="approval-banner-dismiss" onclick="window.dismissApprovalBanner()">Mark as seen</button>
+  </div>
 </div>
 
 <div id="mainApp" style="display:none">
@@ -647,12 +690,41 @@ onValue(postsRef, (snap) => {
   document.getElementById('mainApp').style.display='block';
   populateFilters(); renderTable(); renderCalendar();
   autoUpdateStatuses(); // run check every time posts reload
+  checkApprovalNotifications();
 });
 onValue(ref(db,'messages'), (snap) => {
   allMessages = snap.val() || {};
   if(chatPostId) renderChatMessages();
   renderTable();
 });
+
+
+// ── APPROVAL NOTIFICATIONS ──
+function checkApprovalNotifications() {
+  const lastSeen = parseInt(localStorage.getItem('alaya_approvals_seen') || '0');
+  const newlyApproved = posts.filter(p => p.reviewed && p.reviewedTs && p.reviewedTs > lastSeen);
+  const banner = document.getElementById('approvalBanner');
+  if (!newlyApproved.length) { banner.classList.remove('visible'); return; }
+  const count = newlyApproved.length;
+  document.getElementById('approvalBannerTitle').textContent =
+    `${count} post${count > 1 ? 's have' : ' has'} been approved since you last checked`;
+  document.getElementById('approvalBannerItems').innerHTML = newlyApproved
+    .sort((a,b) => (b.reviewedTs||0) - (a.reviewedTs||0))
+    .map(p => `<div class="approval-banner-item">
+      <span style="color:var(--green);font-size:12px">✓</span>
+      <span><strong>${p.s}</strong> <span class="appr-by">· ${p.t}${p.reviewedBy ? ' · approved by ' + p.reviewedBy : ''}${p.reviewedAt ? ' on ' + p.reviewedAt : ''}</span></span>
+    </div>`).join('');
+  banner.classList.add('visible');
+  // Offset the main content so banner doesn't overlap
+  document.getElementById('mainApp').style.paddingTop = banner.offsetHeight + 'px';
+}
+
+window.dismissApprovalBanner = () => {
+  localStorage.setItem('alaya_approvals_seen', Date.now().toString());
+  const banner = document.getElementById('approvalBanner');
+  banner.classList.remove('visible');
+  document.getElementById('mainApp').style.paddingTop = '0';
+};
 
 // ── AUTO STATUS UPDATE: Scheduled → Posted when date has passed ──
 async function autoUpdateStatuses() {
@@ -792,9 +864,24 @@ function renderTable() {
           <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
             ${reviewed&&!cancelled?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
           </td>
-          <td><span class="type-tag type-${typeClass(p.t)}" style="${cancelled?'text-decoration:none':''}">${p.t}</span></td>
-          <td style="color:var(--muted);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.c}</td>
-          <td><span class="badge badge-${statusClass(p.st)}" style="text-decoration:none">${p.st}</span></td>
+          <td>${cancelled
+            ? `<span class="type-tag type-${typeClass(p.t)}" style="text-decoration:none">${p.t}</span>`
+            : `<span class="type-tag type-${typeClass(p.t)}"><select class="inline-select" onchange="window.quickUpdate('${p.id}','t',this.value)" onclick="event.stopPropagation()">
+                ${['Reels','Carousels','YouTube','Podcast Shorts','TikTok'].map(v=>`<option ${p.t===v?'selected':''}>${v}</option>`).join('')}
+              </select> <span class="inline-caret">▾</span></span>`
+          }</td>
+          <td style="max-width:130px">${cancelled
+            ? `<span style="color:var(--muted);font-size:11px;text-decoration:line-through;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${p.c}</span>`
+            : `<select class="inline-select" style="color:var(--muted);max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onchange="window.quickUpdate('${p.id}','c',this.value)" onclick="event.stopPropagation()">
+                ${['Talking Head — Market Update','Talking Head — Concept Explanation','Talking Head — Client Result','Talking Head — Personal Opinion','Talking Head — Suburb Breakdown','Carousel — Repurposed / High Value','Carousel — Suburb Specific','Carousel — Personal Story','B-Roll Caption Reel','Fun / Meme','Other'].map(v=>`<option ${p.c===v?'selected':''}>${v}</option>`).join('')}
+              </select> <span class="inline-caret" style="color:var(--muted)">▾</span>`
+          }</td>
+          <td>${cancelled
+            ? `<span class="badge badge-cancelled" style="text-decoration:none">Cancelled</span>`
+            : `<span class="badge badge-${statusClass(p.st)}"><select class="inline-select" style="font-weight:600;font-size:11px;color:inherit;background:none" onchange="window.quickUpdate('${p.id}','st',this.value)" onclick="event.stopPropagation()">
+                ${['Idea','Script','Recorded','Edited','Review','Scheduled','Posted','Cancelled'].map(v=>`<option ${p.st===v?'selected':''}>${v}</option>`).join('')}
+              </select> <span class="inline-caret">▾</span></span>`
+          }</td>
           <td style="color:var(--muted);font-size:12px;white-space:nowrap">${p.d||'—'}</td>
           <td style="min-width:110px">${cancelled?'—':links}</td>
           <td>${cancelled?'—':engCell}</td>
@@ -1081,14 +1168,23 @@ function renderChatMessages() {
   el.innerHTML=msgs.map(m=>{
     if(m.system) return `<div class="msg-system">${m.text}</div>`;
     const isMe=m.sender===chatUser;
+    const done=!!m.done;
+    const tickTitle=done?'Marked as actioned — click to undo':'Mark feedback as actioned';
     return `<div class="msg ${isMe?'me':'them'}">
       <span class="msg-sender">${m.sender}</span>
-      <div class="msg-bubble">${m.text}</div>
-      <span class="msg-time">${new Date(m.ts).toLocaleDateString('en-AU',{day:'2-digit',month:'short'})+' '+new Date(m.ts).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}</span>
+      <div class="msg-bubble" style="${done?'opacity:0.55;text-decoration:line-through;':''}">${m.text}</div>
+      <div class="msg-footer">
+        <span class="msg-time">${new Date(m.ts).toLocaleDateString('en-AU',{day:'2-digit',month:'short'})+' '+new Date(m.ts).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}</span>
+        <button class="msg-tick ${done?'done':''}" title="${tickTitle}" onclick="window.toggleMsgDone('${chatPostId}','${m.id}',${!done})">✔</button>
+      </div>
     </div>`;
   }).join('');
   el.scrollTop=el.scrollHeight;
 }
+
+window.toggleMsgDone = async (postId, msgId, done) => {
+  await update(ref(db, `messages/${postId}/${msgId}`), { done });
+};
 window.setChatUser=(u)=>{
   chatUser=u;
   ['Nathan','Adi','Redom'].forEach(n=>{
@@ -1103,13 +1199,23 @@ window.sendMessage=async()=>{
   input.value='';
   await push(ref(db,`messages/${chatPostId}`),{sender:chatUser,text,ts:Date.now()});
 };
+
+window.quickUpdate = async (postId, field, value) => {
+  const updateData = { [field]: value };
+  // If changing to Posted, show toast prompt to add metrics
+  try {
+    await update(ref(db, `posts/${postId}`), updateData);
+    showToast('✓ Updated');
+  } catch(e) { showToast('Error: ' + e.message); }
+};
 window.toggleReview=async(postId,approve)=>{
   const now=new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
-  await update(ref(db,`posts/${postId}`),{reviewed:approve,reviewedBy:approve?chatUser:null,reviewedAt:approve?now:null});
-  if(approve) await push(ref(db,`messages/${postId}`),{system:true,text:`✓ Approved by ${chatUser} on ${now}`,ts:Date.now()});
+  const nowTs=Date.now();
+  await update(ref(db,`posts/${postId}`),{reviewed:approve,reviewedBy:approve?chatUser:null,reviewedAt:approve?now:null,reviewedTs:approve?nowTs:null});
+  if(approve) await push(ref(db,`messages/${postId}`),{system:true,text:`✓ Approved by ${chatUser} on ${now}`,ts:nowTs});
   const updated=posts.find(x=>x.id===postId);
   if(updated&&chatPostId===postId) updateReviewBar({...updated,reviewed:approve,reviewedBy:chatUser,reviewedAt:now});
-  showToast(approve?'✓ Post approved!':'Approval removed');
+  showToast('✓ Post approved!');
 };
 window.closeChat=()=>{document.getElementById('chatOverlay').style.display='none';chatPostId=null;};
 
