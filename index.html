@@ -358,17 +358,48 @@
   .creator-tab.active { color: #fff; }
   .creator-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 6px; }
   .creator-count { font-size: 10px; opacity: 0.75; margin-left: 4px; font-weight: 400; }
+
+  /* Post detail slide-in panel */
+  .detail-overlay { position: fixed; inset: 0; background: #0007; z-index: 250; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .detail-overlay.open { opacity: 1; pointer-events: all; }
+  .detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 251; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); overflow: hidden; }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-panel-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; flex-shrink: 0; }
+  .detail-panel-header-info { flex: 1; min-width: 0; }
+  .detail-panel-title { font-size: 16px; font-weight: 700; line-height: 1.35; margin-bottom: 8px; }
+  .detail-panel-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .detail-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
+  .detail-close:hover { color: var(--text); background: var(--surface2); }
+  .detail-panel-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+  .detail-section { display: flex; flex-direction: column; gap: 6px; }
+  .detail-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .detail-caption { font-size: 14px; line-height: 1.65; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; white-space: pre-wrap; word-break: break-word; }
+  .detail-caption.empty { color: var(--muted); font-style: italic; }
+  .detail-hashtags { font-size: 13px; color: var(--accent-bright); line-height: 1.6; word-break: break-word; }
+  .detail-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .detail-link-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; border: 1px solid var(--border); color: var(--text); background: var(--surface2); transition: 0.15s; }
+  .detail-link-btn:hover { border-color: var(--accent-bright); background: var(--surface); }
+  .detail-link-btn.social { border-color: #1a3d28; color: var(--green); background: #0a1e12; }
+  .detail-link-btn.social:hover { background: #0e2818; }
+  .detail-link-btn.draft { border-color: #0e2540; color: var(--blue); background: #091828; }
+  .detail-link-btn.draft:hover { background: #0d2030; }
+  body.light .detail-link-btn.social { background: #d4f5e4; border-color: #a8e8c8; }
+  body.light .detail-link-btn.draft { background: #ddeeff; border-color: #aad0f0; }
+  .detail-engagement { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+  .detail-eng-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+  .detail-eng-num { font-size: 20px; font-weight: 700; }
+  .detail-eng-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; font-weight: 600; }
+  .detail-panel-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+  .detail-edit-btn { flex: 1; background: var(--accent); border: none; color: #fff; padding: 9px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .detail-edit-btn:hover { background: var(--accent-bright); }
+  .detail-chat-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .detail-chat-btn:hover { border-color: var(--accent-bright); }
 </style>
 </head>
 <body>
 
 <div id="loadingScreen">
-  <svg width="48" height="48" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M4 14L14 5L24 14" stroke="#4d58f5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M7 17L7 23L11 23L11 19L17 19L17 23L21 23L21 17" stroke="#4d58f5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M4 18L14 9L24 18" stroke="#4d58f5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
-  </svg>
-  <h2>Alaya Property</h2>
+  <img src="logo.png" alt="Alaya Property" style="height:70px;width:auto;margin-bottom:8px;">
   <p style="color:var(--muted);font-size:13px">Connecting to database...</p>
   <div class="spinner"></div>
 </div>
@@ -389,12 +420,7 @@
 <div id="mainApp" style="display:none">
   <nav>
     <span class="logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M4 14L14 5L24 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M7 17L7 23L11 23L11 19L17 19L17 23L21 23L21 17" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M4 18L14 9L24 18" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
-      </svg>
-      <span class="logo-text">Alaya Property</span>
+      <img src="logo.png" alt="Alaya Property" style="height:32px;width:auto;">
     </span>
     <button class="nav-btn active" onclick="showView('tracker',this)">Tracker</button>
     <button class="nav-btn" onclick="showView('calendar',this)">Calendar</button>
@@ -501,6 +527,24 @@
   </div>
 </div>
 
+
+<!-- POST DETAIL PANEL -->
+<div class="detail-overlay" id="detailOverlay" onclick="window.closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-panel-header">
+    <div class="detail-panel-header-info">
+      <div class="detail-panel-title" id="detailTitle"></div>
+      <div class="detail-panel-meta" id="detailMeta"></div>
+    </div>
+    <button class="detail-close" onclick="window.closeDetail()">✕</button>
+  </div>
+  <div class="detail-panel-body" id="detailBody"></div>
+  <div class="detail-panel-footer">
+    <button class="detail-chat-btn" id="detailChatBtn" onclick="">💬 Chat</button>
+    <button class="detail-edit-btn" id="detailEditBtn" onclick="">Edit Post</button>
+  </div>
+</div>
+
 <!-- CAL POPUP -->
 <div class="cal-popup-overlay" id="calPopupOverlay" style="display:none" onclick="if(event.target===this)closeCalPopup()">
   <div class="cal-popup">
@@ -549,6 +593,9 @@
     <div class="form-row"><label>Draft Link <span style="color:var(--blue);font-size:10px">(pre-publish)</span></label>
       <input id="fLinkDraft" placeholder="https://drive.google.com/... or https://canva.com/...">
     </div>
+    <div class="form-row"><label>Caption & Hashtags</label><textarea id="fCaption" placeholder="Write your caption here...
+
+#AlayaProperty #PropertyInvesting ..." style="min-height:110px"></textarea></div>
     <div class="form-row"><label>Creator</label>
       <select id="fCreator">
         <option>Adi</option>
@@ -930,7 +977,7 @@ function renderTable() {
           : '<span style="color:var(--border)">—</span>';
         return `<tr class="${rowClass}">
           <td><input type="checkbox" class="row-check" data-id="${p.id}" ${isSelected?'checked':''} ${cancelled?'disabled':''} onchange="window.toggleSelect('${p.id}')" style="text-decoration:none"></td>
-          <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.s}">
+          <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" title="${p.s} — click to view" onclick="window.openDetail('${p.id}')">
             ${reviewed&&!cancelled?'<span style="color:var(--green);margin-right:5px">✓</span>':''}${p.s}
             ${activeCreator==='All'?`<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:${CREATOR_COLORS[p.creator||'Adi']||'var(--muted)'}22;color:${CREATOR_COLORS[p.creator||'Adi']||'var(--muted)'}">${p.creator||'Adi'}</span>`:''}
           </td>
@@ -1281,6 +1328,86 @@ window.quickUpdate = async (postId, field, value) => {
     showToast('✓ Updated');
   } catch(e) { showToast('Error: ' + e.message); }
 };
+
+window.openDetail = (postId) => {
+  const p = posts.find(x => x.id === postId);
+  if(!p) return;
+  const overlay = document.getElementById('detailOverlay');
+  const panel = document.getElementById('detailPanel');
+
+  // Header
+  document.getElementById('detailTitle').textContent = p.s;
+  const creatorColor = CREATOR_COLORS[p.creator||'Adi'] || 'var(--muted)';
+  document.getElementById('detailMeta').innerHTML = [
+    `<span class="badge badge-${statusClass(p.st)}" style="text-decoration:none">${p.st}</span>`,
+    `<span class="type-tag type-${typeClass(p.t)}">${p.t}</span>`,
+    p.d ? `<span style="font-size:12px;color:var(--muted)">${p.d}</span>` : '',
+    `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:${creatorColor}22;color:${creatorColor}">${p.creator||'Adi'}</span>`,
+  ].filter(Boolean).join('');
+
+  // Body
+  let bodyHTML = '';
+
+  // Caption & Hashtags combined
+  bodyHTML += `<div class="detail-section">
+    <div class="detail-section-label">Caption</div>
+    <div class="detail-caption ${p.cap?'':'empty'}">${p.cap ? p.cap.replace(/\n/g,'<br>') : 'No caption added yet.'}</div>
+  </div>`;
+
+  // Category
+  bodyHTML += `<div class="detail-section">
+    <div class="detail-section-label">Category</div>
+    <div style="font-size:13px;color:var(--text)">${p.c||'—'}</div>
+  </div>`;
+
+  // Links
+  if(p.ls || p.ld) {
+    bodyHTML += `<div class="detail-section">
+      <div class="detail-section-label">Links</div>
+      <div class="detail-links">
+        ${p.ls ? `<a class="detail-link-btn social" href="${p.ls}" target="_blank">📱 Live Post ↗</a>` : ''}
+        ${p.ld ? `<a class="detail-link-btn draft" href="${p.ld}" target="_blank">📄 Draft ↗</a>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // Engagement
+  if(p.st === 'Posted' && (p.ev||p.el||p.ec||p.es)) {
+    bodyHTML += `<div class="detail-section">
+      <div class="detail-section-label">Engagement</div>
+      <div class="detail-engagement">
+        <div class="detail-eng-card"><div class="detail-eng-num" style="color:var(--blue)">${(p.ev||0).toLocaleString()}</div><div class="detail-eng-lbl">👁 Views</div></div>
+        <div class="detail-eng-card"><div class="detail-eng-num" style="color:#f472b6">${(p.el||0).toLocaleString()}</div><div class="detail-eng-lbl">❤️ Likes</div></div>
+        <div class="detail-eng-card"><div class="detail-eng-num" style="color:var(--accent-bright)">${(p.ec||0).toLocaleString()}</div><div class="detail-eng-lbl">💬 Comments</div></div>
+        <div class="detail-eng-card"><div class="detail-eng-num" style="color:var(--green)">${(p.es||0).toLocaleString()}</div><div class="detail-eng-lbl">🔁 Shares</div></div>
+      </div>
+    </div>`;
+  }
+
+  // Approval status
+  bodyHTML += `<div class="detail-section">
+    <div class="detail-section-label">Approval</div>
+    <div style="font-size:13px">${p.reviewed
+      ? `<span style="color:var(--green)">✓ Approved by ${p.reviewedBy||'?'}${p.reviewedAt?' on '+p.reviewedAt:''}</span>`
+      : `<span style="color:var(--yellow)">⏳ Awaiting approval</span>`
+    }</div>
+  </div>`;
+
+  document.getElementById('detailBody').innerHTML = bodyHTML;
+
+  // Footer buttons
+  document.getElementById('detailEditBtn').onclick = () => { window.closeDetail(); window.openModal(postId); };
+  document.getElementById('detailChatBtn').onclick = () => { window.closeDetail(); window.openChat(postId); };
+
+  overlay.classList.add('open');
+  panel.classList.add('open');
+};
+
+window.closeDetail = () => {
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+};
+
 window.toggleReview=async(postId,approve)=>{
   const now=new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
   const nowTs=Date.now();
@@ -1304,6 +1431,7 @@ window.openModal=(id)=>{
   document.getElementById('fDate').value = p?.d || '';
   document.getElementById('fLinkSocial').value = p?.ls || '';
   document.getElementById('fLinkDraft').value = p?.ld || '';
+  document.getElementById('fCaption').value = p?.cap || '';
   document.getElementById('fCreator').value = p?.creator || (activeCreator !== 'All' ? activeCreator : 'Adi');
   // Engagement fields — only show for Posted
   const isPosted = p?.st === 'Posted';
@@ -1336,6 +1464,7 @@ window.savePost=async()=>{
     d: document.getElementById('fDate').value.trim(),
     ls: document.getElementById('fLinkSocial').value.trim(),
     ld: document.getElementById('fLinkDraft').value.trim(),
+    cap: document.getElementById('fCaption').value.trim(),
     creator: document.getElementById('fCreator').value
   };
   if(st === 'Posted') {
