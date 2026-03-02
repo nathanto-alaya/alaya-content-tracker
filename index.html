@@ -896,7 +896,7 @@ function renderStats() {
     {label:'Approved ✓',num:approved,color:'var(--green)',key:'approved'},
   ];
   document.getElementById('stats').innerHTML=cards.map(c=>`
-    <div class="stat-card ${statusFilter===c.key?'active-filter':''}" onclick="window.filterByStatus('${c.key}')">
+    <div class="stat-card ${(c.key==='needs'||c.key==='approved')?(document.getElementById('filterReview')?.value===c.key?'active-filter':''):(statusFilter===c.key?'active-filter':'')}" onclick="window.filterByStatus('${c.key}')">
       <div class="stat-num" style="color:${c.color}">${c.num}</div>
       <div class="stat-label">${c.label}</div>
     </div>`).join('');
@@ -1504,8 +1504,20 @@ window.deletePost=async()=>{
 };
 
 window.filterByStatus=(key)=>{
-  statusFilter=statusFilter===key?'':key;
-  document.getElementById('filterStatus').value=['needs','approved'].includes(statusFilter)?'':statusFilter;
+  if(key==='needs'||key==='approved') {
+    // These are review filters — wire to the filterReview dropdown
+    const fr=document.getElementById('filterReview');
+    const current=fr.value;
+    fr.value = current===key ? '' : key;
+    // Clear status filter so they don't conflict
+    statusFilter='';
+    document.getElementById('filterStatus').value='';
+  } else {
+    statusFilter=statusFilter===key?'':key;
+    document.getElementById('filterStatus').value=statusFilter;
+    // Clear review filter
+    document.getElementById('filterReview').value='';
+  }
   renderTable();
 };
 
